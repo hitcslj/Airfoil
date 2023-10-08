@@ -6,6 +6,10 @@
 
 [总览图](./source/model_overview.png)
 
+## 环境配置
+
+> pip install -r requirment.txt
+
 
 ## 基础的encoder - decoder
 
