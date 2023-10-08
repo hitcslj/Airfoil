@@ -1,4 +1,11 @@
-## 使用说明：
+# 使用说明：
+
+
+
+## 模型的总体预览图
+
+[总览图](./source/model_overview.png)
+
 
 ## 基础的encoder - decoder
 
@@ -20,4 +27,8 @@ n = N/10
 > python train_parsec.py # 训练模型
 
 > python infer_parsec.py # 测试模型
+
+## 基础的基于物理量的编辑
+
+
 
