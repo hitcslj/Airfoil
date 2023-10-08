@@ -4,7 +4,7 @@
 
 ## 模型的总体预览图
 
-[总览图](./source/model_overview.jpg)
+![总览图](./source/model_overview.jpg)
 
 ## 环境配置
 
