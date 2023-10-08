@@ -8,7 +8,7 @@
 
 ## 环境配置
 
-> pip install -r requirment.txt
+> pip install -r requirements.txt
 
 
 ## 基础的encoder - decoder
