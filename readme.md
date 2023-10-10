@@ -6,7 +6,7 @@
 
 ![总览图](./source/model_overview.jpg)
 
-![source/model_framework.png](.\source\model_framework.png)
+![source/model_framework.png](./source/model_framework.png)
 
 ## 环境配置
 
