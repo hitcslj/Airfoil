@@ -26,7 +26,7 @@
 ## 基础的基于物理量重建
 
 
-输入：n （n = N/10）个关键点 + 8个物理量  {'input':input,'output':data,'params':params}
+输入：n （n = N/10）个关键点 + 10个物理量  {'input':input,'output':data,'params':params}
 
 输出：N个点 (N,2)
 

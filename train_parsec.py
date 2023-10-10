@@ -188,15 +188,15 @@ class Trainer:
         for _,data in enumerate(test_loader):
              
             x_sample = data['input'] # [b,20,2]
-            x_physics = data['params'] # [b,9]
-            x_physics = x_physics.unsqueeze(-1) #[b,9,1]
-            x_physics = x_physics.expand(-1,-1,2) #[b,9,2]
+            x_physics = data['params'] # [b,10]
+            x_physics = x_physics.unsqueeze(-1) #[b,10,1]
+            x_physics = x_physics.expand(-1,-1,2) #[b,10,2]
 
             x_gt = data['output'] # [b,200,2]
             x_sample = x_sample.to(device) 
             x_physics = x_physics.to(device)
             x_gt = x_gt.to(device)
-            pred = model(x_sample,x_physics) # [b,200,2],[b,9,2]
+            pred = model(x_sample,x_physics) # [b,200,2],[b,10,2]
 
             total_pred += x_sample.shape[0]
             # loss,_ = criterion(data,output)
