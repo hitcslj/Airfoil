@@ -6,6 +6,8 @@
 
 ![总览图](./source/model_overview.jpg)
 
+![source/model_framework.png](.\source\model_framework.png)
+
 ## 环境配置
 
 > pip install -r requirements.txt
@@ -26,7 +28,7 @@
 ## 基础的基于物理量重建
 
 
-输入：n （n = N/10）个关键点 + 10个物理量  {'input':input,'output':data,'params':params}
+输入：n （n = N/10）个关键点 + 8个物理量  {'input':input,'output':data,'params':params}
 
 输出：N个点 (N,2)
 
