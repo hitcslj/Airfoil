@@ -4,3 +4,6 @@ from .AE import *
 from .FoldingNet import *
 from .utils import *
 from .AE_B import *
+from .AE_keypoint import *
+from .AE_B_POS import *
+from .AE_B_POS_MID import *

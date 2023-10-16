@@ -21,8 +21,8 @@ def parse_option():
     parser.add_argument('--num_workers',type=int,default=4)
 
     # io
-    parser.add_argument('--checkpoint_path', default='eval_result/logs_p/ckpt_epoch_30000.pth',help='Model checkpoint path')
-    parser.add_argument('--log_dir', default='./test_result/logs_p',
+    parser.add_argument('--checkpoint_path', default='eval_result/logs_parsec/ckpt_epoch_10000.pth',help='Model checkpoint path')
+    parser.add_argument('--log_dir', default='./test_result/logs_parsec',
                         help='Dump dir to save visual result')
 
     parser.add_argument('--eval', default=False, action='store_true')
@@ -73,21 +73,24 @@ class Tester:
 
         test_loader = tqdm(dataloader)
         for _,data in enumerate(test_loader):
-            data = data.to(device) # [b,200,2]
-            # PointNet/FoldingNet
-            output = model(data.permute(0,2,1)) # [b,2,200]
-            output = output.permute(0,2,1) # [b,200,2]
+             
+            x_sample = data['input'] # [b,20,2]
+            x_physics = data['params'] # [b,9]
+            x_physics = x_physics.unsqueeze(-1) #[b,9,1]
+            x_physics = x_physics.expand(-1,-1,2) #[b,9,2]
 
-            ## AE
-            # outputDict = model(data)
-            # output = outputDict['output']
+            x_gt = data['output'] # [b,200,2]
+            x_sample = x_sample.to(device) 
+            x_physics = x_physics.to(device)
+            x_gt = x_gt.to(device)
+            pred = model(x_sample,x_physics) # [b,20,2],[b,9,2]
 
-            total_pred += data.shape[0]
+            total_pred += x_sample.shape[0]
             # loss,_ = criterion(data,output)
-            loss = criterion(data,output)
+            loss = criterion(x_gt,pred)
             total_loss += loss.item()
             # 判断样本是否预测正确
-            distances = torch.norm(data - output,dim=2) #(B,200)
+            distances = torch.norm(x_gt - pred,dim=2) #(B,200)
             # 点的直线距离小于t，说明预测值和真实值比较接近，认为该预测值预测正确
             t = args.distance_threshold
             # 200个点中，预测正确的点的比例超过ratio，认为该形状预测正确
@@ -157,9 +160,9 @@ class Tester:
                 fig.tight_layout()
 
 
-                plt.savefig(f'{args.log_dir}/{step}_pointNet.png', format='png')
+                plt.savefig(f'{args.log_dir}/{step}_mlp.png', format='png')
                 plt.close()
-        # self.evaluate_one_epoch(model,nn.L1Loss(),test_loader,device,0,args)
+        self.evaluate_one_epoch(model,nn.MSELoss(),test_loader,device,0,args)
 if __name__ == '__main__':
     opt = parse_option()
     # cudnn

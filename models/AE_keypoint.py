@@ -1,6 +1,5 @@
 import torch
 from torch import nn
-import math
 
 class MLP(nn.Module):
     def __init__(self,input_dim,hidden_dim,output_dim) -> None:
@@ -20,6 +19,7 @@ class MLP(nn.Module):
         x = self.relu2(x)
         x = self.linear3(x)
         return x
+
 
 
 class AE(nn.Module):
@@ -45,27 +45,26 @@ class AE(nn.Module):
         encoded=self.encoder(x)
         decoded=self.decoder(encoded)
         return decoded
-    
-class AE_B(nn.Module):
+        
+class AE_keypoint(nn.Module):
     def __init__(self,in_channels=2,
-                 ae_channels=30*16,
+                 ae_channels=20*16,
                 ) -> None:
         super().__init__()
 
-        self.mlp11 = MLP(in_channels,8,16) # (B,20,2) --> (B,20,16)
+        self.mlp11 = MLP(in_channels,8,16) # (B,200,2) --> (B,200,16)
         self.mlp12 = MLP(ae_channels,ae_channels//2,ae_channels)
         self.ae = AE(in_channels=ae_channels)
         self.mlp21 = MLP(ae_channels, ae_channels*2, 200*16)
         self.mlp22 = MLP(16, 8, in_channels)
 
-    def forward(self,x,p,mid_input=None,mid_data=None): # p就是物理参数
+    def forward(self,x,p=None): 
         bs = x.shape[0]
-        x = torch.cat((x,p),dim=1)
-        ae_input = self.mlp11(x) # (B,30,2) --> (B,30,16)
-        ae_input = ae_input.reshape(bs,-1) # (B,30,16) --> (B,30*16)
-        ae_input = self.mlp12(ae_input) # (B,30*16) --> (B,30*16)
-        ae_output = self.ae(ae_input) # (B,30*16) --> (B,30*16)
-        ae_output = self.mlp21(ae_output) # (B,30*16) --> (B,200*16)
+        ae_input = self.mlp11(x) # (B,20,2) --> (B,20,16)
+        ae_input = ae_input.reshape(bs,-1) # (B,20,16) --> (B,20*16)
+        ae_input = self.mlp12(ae_input) # (B,20*16) --> (B,20*16)
+        ae_output = self.ae(ae_input) # (B,20*16) --> (B,20*16)
+        ae_output = self.mlp21(ae_output) # (B,20*16) --> (B,200*16)
         y = ae_output.reshape(bs,200,16) # (B,200*16) --> (B,200,16)
 
         output = self.mlp22(y) # (B,200,16) --> (B,200,2)

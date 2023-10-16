@@ -3,6 +3,7 @@ from torch.utils.data import Dataset,DataLoader
 import os
 import torchvision.transforms as transforms
 import numpy as np
+import matplotlib.pyplot as plt
 
 class AirFoilDataset(Dataset):
     """Dataset for shape datasets(coco & 机翼)"""
@@ -78,7 +79,13 @@ class AirFoilDataset2(Dataset):
                 # 取出路径的最后一个文件名作为key
                 name = name_params[0].split('/')[-1].split('.')[0]
                 self.params[name] = list(map(float,name_params[1:]))
-        
+    
+    def calMidLine(self,data):
+        n = data.shape[0]//2 # data是torch.tensor,shape为[200,2]
+        up = data[1:n, 1]
+        low =  data[-n+1:, 1].flip(0)
+        return torch.stack([data[1:n, 0], (up+low) / 2], dim=1)
+
     def __getitem__(self, index):
         """Get current batch for input index"""
         txt_path = self.txt_list[index]
@@ -99,8 +106,11 @@ class AirFoilDataset2(Dataset):
         # data = self.pc_norm(data)
         data = torch.FloatTensor(data)
         input = data[::10] # 20个点
+        mid_data = self.calMidLine(data) # [99,2]
+        mid_input = self.calMidLine(input) # [9,2]
+        # params = params[0:9] # 9个参数
         params = torch.FloatTensor(params)
-        return {'input':input,'output':data,'params':params}
+        return {'input':input,'output':data,'params':params,'mid_input':mid_input,'mid_output':mid_data}
     
     def __len__(self):
         return len(self.txt_list)
@@ -116,6 +126,30 @@ class AirFoilDataset2(Dataset):
 if __name__=='__main__':
     dataset = AirFoilDataset2()
     dataloader = DataLoader(dataset,batch_size=1,shuffle=True,num_workers=4)
-    for i,data in enumerate(dataloader):
+    for step,data in enumerate(dataloader):
         print(data)
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 5))
+        with torch.no_grad():
+            x_sample = data['input'] # [b,20,2]
+            x_physics = data['params'] # [b,10]
+            x_mid = data['mid_input'] # [b,9,2]
+            x_physics = x_physics.unsqueeze(-1) #[b,10,1]
+            x_physics = x_physics.expand(-1,-1,2) #[b,10,2]
+            x_gt = data['output'] # [b,200,2]
+            mid_gt = data['mid_output'] # [b,99,2]
+            data = torch.cat((x_gt,mid_gt),dim=1) # [b,299,2]
+            origin_x = data[0,:,0].cpu().numpy()
+            origin_y = data[0,:,1].cpu().numpy()
+            ax1.scatter(origin_x, origin_y, color='red', marker='o')
+            ax1.set_xlabel('X')
+            ax1.set_ylabel('Y')
+            # ax1.set_aspect('equal')
+            # ax1.axis('off')
+            ax1.set_title('Original Data')
+
+            fig.tight_layout()
+
+
+            plt.savefig(f'data.png', format='png')
+            plt.close()
         break

@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader
 import torch.optim as optim 
  
 import torch.optim.lr_scheduler as lr_scheduler
-from models import pointNet,AEBackboneNet,FoldingNet,AE_B
+from models import AE_keypoint
 from datasets import AirFoilDataset2 
 import math 
 from pytorch3d.loss import chamfer_distance
@@ -39,7 +39,7 @@ def parse_option():
 
     # io
     parser.add_argument('--checkpoint_path', default='./eval_result/logs_p/ckpt_epoch_last.pth',help='Model checkpoint path')
-    parser.add_argument('--log_dir', default='./eval_result/logs_parsec',
+    parser.add_argument('--log_dir', default='./eval_result/logs_p_keypoint',
                         help='Dump dir to save model checkpoint')
     parser.add_argument('--val_freq', type=int, default=100)  # epoch-wise
     parser.add_argument('--save_freq', type=int, default=10000)  # epoch-wise
@@ -123,7 +123,7 @@ class Trainer:
         # model = pointNet(input_channels=2)
         # model = AEBackboneNet(in_channels=2)
         # model = FoldingNet()
-        model = AE_B()
+        model = AE_keypoint()
         return model
 
     @staticmethod
@@ -228,7 +228,7 @@ class Trainer:
 
         train_loader, val_loader = self.get_loaders(args) 
         optimizer = self.get_optimizer(args,model)
-        criterion = nn.MSELoss()
+        criterion = nn.L1Loss()
         # criterion = chamfer_distance
         # Scheduler https://arxiv.org/pdf/1812.01187.pdf
         lf = lambda x: ((1 + math.cos(x * math.pi / args.max_epoch)) / 2) * (1 - args.lrf) + args.lrf  # cosine

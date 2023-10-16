@@ -122,6 +122,14 @@ def params_to_coord(params):
     return y_coord
 
 
+def calMidLine(y_data):
+    mid_data = []
+    for i in range(101):
+        if i==0 or i==100:
+            mid_data.append(0)
+        else:
+            mid_data.append((y_data[i]+y_data[-i])/2)
+    return np.array(mid_data)
 
 def penalty(opt_params,opt_ind):
     '''compute penalty, which is sum of square root of difference between the data and
@@ -130,8 +138,14 @@ def penalty(opt_params,opt_ind):
     y_params = params_to_coord(opt_params)
     
     pen_elem = np.square(y_data-y_params)
-    pen = np.sum(pen_elem)
 
+    # ## 中轴线
+    mid_data = calMidLine(y_data)
+    mid_params = calMidLine(y_params)
+    pen_elem1 = np.square(mid_data-mid_params)
+
+    pen = np.sum(pen_elem)
+    pen += np.sum(pen_elem1)
     return pen
 
 
@@ -145,7 +159,7 @@ if __name__ == '__main__':
           file_path = os.path.join(root, file)
           # Do something with the file_path
           allData.append(file_path)
-  allData = allData[:10]
+  # allData = allData[:10]
   ## 翼型数据的横纵坐标
   xx,yy = [],[]
   for i, file_path in enumerate(allData):
@@ -210,14 +224,13 @@ if __name__ == '__main__':
   plt.savefig('best_worst.png',dpi=300)
   plt.show()
 
-  # save params file, 
-  # TODO
-  # parsec_params_path = 'data/airfoil/parsec_params.txt'
-  # # 需要再之前加入文件file_name
-  # with open(parsec_params_path,'w') as f:
-  #   for i,path in enumerate(allData):
-  #     f.write(path)
-  #     f.write(',')
-  #     f.write(','.join(map(str,opt_params[i,:])))
-  #     f.write('\n')
+  # save params file, which is used by the airfoil generator
+  parsec_params_path = 'data/airfoil/parsec_params.txt'
+  # 需要再之前加入文件file_name
+  with open(parsec_params_path,'w') as f:
+    for i,path in enumerate(allData):
+      f.write(path)
+      f.write(',')
+      f.write(','.join(map(str,opt_params[i,:])))
+      f.write('\n')
        

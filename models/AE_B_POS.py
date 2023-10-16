@@ -45,8 +45,24 @@ class AE(nn.Module):
         encoded=self.encoder(x)
         decoded=self.decoder(encoded)
         return decoded
-    
-class AE_B(nn.Module):
+
+def add_position_embedding(x):
+    bs, seq_len, _ = x.shape
+    d_model = x.shape[-1]
+
+    # 生成位置编码
+    position_encoding = torch.zeros(seq_len, d_model)
+    position = torch.arange(0, seq_len, dtype=torch.float).unsqueeze(1)
+    div_term = torch.exp(torch.arange(0, d_model, 2).float() * (-math.log(10000.0) / d_model))
+    position_encoding[:, 0::2] = torch.sin(position * div_term)
+    position_encoding[:, 1::2] = torch.cos(position * div_term)
+    position_encoding = position_encoding.to(x.device)
+    # 将位置编码与输入x相加
+    x_with_position = x + position_encoding.unsqueeze(0)
+
+    return x_with_position
+
+class AE_B_POS(nn.Module):
     def __init__(self,in_channels=2,
                  ae_channels=30*16,
                 ) -> None:
@@ -60,6 +76,7 @@ class AE_B(nn.Module):
 
     def forward(self,x,p,mid_input=None,mid_data=None): # p就是物理参数
         bs = x.shape[0]
+        x = add_position_embedding(x)
         x = torch.cat((x,p),dim=1)
         ae_input = self.mlp11(x) # (B,30,2) --> (B,30,16)
         ae_input = ae_input.reshape(bs,-1) # (B,30,16) --> (B,30*16)

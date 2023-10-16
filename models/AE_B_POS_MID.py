@@ -45,10 +45,26 @@ class AE(nn.Module):
         encoded=self.encoder(x)
         decoded=self.decoder(encoded)
         return decoded
-    
-class AE_B(nn.Module):
+
+def add_position_embedding(x):
+    bs, seq_len, _ = x.shape
+    d_model = x.shape[-1]
+
+    # 生成位置编码
+    position_encoding = torch.zeros(seq_len, d_model)
+    position = torch.arange(0, seq_len, dtype=torch.float).unsqueeze(1)
+    div_term = torch.exp(torch.arange(0, d_model, 2).float() * (-math.log(10000.0) / d_model))
+    position_encoding[:, 0::2] = torch.sin(position * div_term)
+    position_encoding[:, 1::2] = torch.cos(position * div_term)
+    position_encoding = position_encoding.to(x.device)
+    # 将位置编码与输入x相加
+    x_with_position = x + position_encoding.unsqueeze(0)
+
+    return x_with_position
+
+class AE_B_POS_MID(nn.Module):
     def __init__(self,in_channels=2,
-                 ae_channels=30*16,
+                 ae_channels=39*16,
                 ) -> None:
         super().__init__()
 
@@ -58,9 +74,15 @@ class AE_B(nn.Module):
         self.mlp21 = MLP(ae_channels, ae_channels*2, 200*16)
         self.mlp22 = MLP(16, 8, in_channels)
 
-    def forward(self,x,p,mid_input=None,mid_data=None): # p就是物理参数
+    def calMidLine(self, data):
+        n = data.shape[1] // 2
+        return torch.stack([data[:,1:n, 0], (data[:,1:n, 1] + data[:,-n+1:, 1].flip(1)) / 2], dim=2)
+    
+    def forward(self,x,p,mid_input): # p就是物理参数,mid_input是中弧线的点
         bs = x.shape[0]
-        x = torch.cat((x,p),dim=1)
+        x = add_position_embedding(x)
+        mid_input = add_position_embedding(mid_input)
+        x = torch.cat((x,mid_input,p),dim=1) # (B,39,2)
         ae_input = self.mlp11(x) # (B,30,2) --> (B,30,16)
         ae_input = ae_input.reshape(bs,-1) # (B,30,16) --> (B,30*16)
         ae_input = self.mlp12(ae_input) # (B,30*16) --> (B,30*16)
@@ -69,4 +91,4 @@ class AE_B(nn.Module):
         y = ae_output.reshape(bs,200,16) # (B,200*16) --> (B,200,16)
 
         output = self.mlp22(y) # (B,200,16) --> (B,200,2)
-        return output
+        return output,self.calMidLine(output) # (B,200,2),(B,99,2)

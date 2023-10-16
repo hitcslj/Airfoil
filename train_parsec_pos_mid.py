@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader
 import torch.optim as optim 
  
 import torch.optim.lr_scheduler as lr_scheduler
-from models import pointNet,AEBackboneNet,FoldingNet,AE_B
+from models import AE_B_POS_MID
 from datasets import AirFoilDataset2 
 import math 
 from pytorch3d.loss import chamfer_distance
@@ -39,7 +39,7 @@ def parse_option():
 
     # io
     parser.add_argument('--checkpoint_path', default='./eval_result/logs_p/ckpt_epoch_last.pth',help='Model checkpoint path')
-    parser.add_argument('--log_dir', default='./eval_result/logs_parsec',
+    parser.add_argument('--log_dir', default='./eval_result/logs_parsec_pos_mid',
                         help='Dump dir to save model checkpoint')
     parser.add_argument('--val_freq', type=int, default=100)  # epoch-wise
     parser.add_argument('--save_freq', type=int, default=10000)  # epoch-wise
@@ -123,7 +123,7 @@ class Trainer:
         # model = pointNet(input_channels=2)
         # model = AEBackboneNet(in_channels=2)
         # model = FoldingNet()
-        model = AE_B()
+        model = AE_B_POS_MID()
         return model
 
     @staticmethod
@@ -147,25 +147,24 @@ class Trainer:
         # L2 = nn.MSELoss()
         for _,data in enumerate(tqdm(dataloader)):
             x_sample = data['input'] # [b,20,2]
-            x_physics = data['params'] # [b,9]
-            x_physics = x_physics.unsqueeze(-1) #[b,9,1]
-            x_physics = x_physics.expand(-1,-1,2) #[b,9,2]
-
+            x_physics = data['params'] # [b,10]
+            x_mid = data['mid_input'] # [b,9,2]
+            x_physics = x_physics.unsqueeze(-1) #[b,10,1]
+            x_physics = x_physics.expand(-1,-1,2) #[b,10,2]
             x_gt = data['output'] # [b,200,2]
+            mid_gt = data['mid_output'] # [b,9,2]
             x_sample = x_sample.to(device) 
             x_physics = x_physics.to(device)
+            x_mid = x_mid.to(device)
             x_gt = x_gt.to(device)
+            mid_gt = mid_gt.to(device)
             optimizer.zero_grad()
-            
-            # # PointNet/FoldingNet
-            # pred = model(data.permute(0,2,1)) # [b,2,200]
-            # pred = pred.permute(0,2,1) # [b,200,2]
 
             # # AE
-            pred = model(x_sample,x_physics) # [b,200,2],[b,9,2]
+            pred,mid_pred = model(x_sample,x_physics,x_mid) 
             
             # loss,_ = criterion(data,pred)
-            loss = criterion(x_gt,pred)
+            loss = criterion(pred,x_gt) + criterion(mid_pred,mid_gt)
             # 反向传播
             loss.backward()
 
@@ -188,15 +187,20 @@ class Trainer:
         for _,data in enumerate(test_loader):
              
             x_sample = data['input'] # [b,20,2]
-            x_physics = data['params'] # [b,9]
-            x_physics = x_physics.unsqueeze(-1) #[b,9,1]
-            x_physics = x_physics.expand(-1,-1,2) #[b,9,2]
-
+            x_physics = data['params'] # [b,10]
+            x_mid = data['mid_input'] # [b,9,2]
+            x_physics = x_physics.unsqueeze(-1) #[b,10,1]
+            x_physics = x_physics.expand(-1,-1,2) #[b,10,2]
             x_gt = data['output'] # [b,200,2]
+            mid_gt = data['mid_output'] # [b,9,2]
             x_sample = x_sample.to(device) 
             x_physics = x_physics.to(device)
+            x_mid = x_mid.to(device)
             x_gt = x_gt.to(device)
-            pred = model(x_sample,x_physics) # [b,20,2],[b,9,2]
+            mid_gt = mid_gt.to(device)
+
+            # AE
+            pred,mid_pred = model(x_sample,x_physics,x_mid) 
 
             total_pred += x_sample.shape[0]
             # loss,_ = criterion(data,output)
@@ -223,7 +227,7 @@ class Trainer:
         
         # 单卡训练
         model = self.get_model(args)
-        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        device = torch.device('cuda:1' if torch.cuda.is_available() else 'cpu')
         model.to(device)
 
         train_loader, val_loader = self.get_loaders(args) 
