@@ -73,12 +73,20 @@ class AirFoilDataset2(Dataset):
                           for line in f.readlines()]
         self.txt_list = txt_list
         self.params = {}
+        # params = []
         with open('data/airfoil/parsec_params.txt') as f:
             for line in f.readlines():
                 name_params = line.rstrip().strip('\n').split(',')
                 # 取出路径的最后一个文件名作为key
                 name = name_params[0].split('/')[-1].split('.')[0]
                 self.params[name] = list(map(float,name_params[1:]))
+                # params.append(list(map(float,name_params[1:])))
+        # ## 求params每个物理量的范围
+        # params = np.array(params)
+        # self.params_min = np.min(params,axis=0)
+        # self.params_max = np.max(params,axis=0)
+        # print('params_min:',self.params_min)
+        # print('params_max:',self.params_max)
     
     def calMidLine(self,data):
         n = data.shape[0]//2 # data是torch.tensor,shape为[200,2]
@@ -127,7 +135,7 @@ if __name__=='__main__':
     dataset = AirFoilDataset2()
     dataloader = DataLoader(dataset,batch_size=1,shuffle=True,num_workers=4)
     for step,data in enumerate(dataloader):
-        print(data)
+        # print(data)
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 5))
         with torch.no_grad():
             x_sample = data['input'] # [b,20,2]
