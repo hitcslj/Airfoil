@@ -102,19 +102,19 @@ def params_to_coord(params):
     xte = 1.0
     yte = 0.0
 
-    rle = params[0]
+    rle = params[0] # leading edge radius
 
     # Pressure (lower) surface parameters 
-    x_pre = params[1]
-    y_pre = params[2]
-    d2ydx2_pre = params[3]
-    th_pre = params[4]
+    x_pre = params[1] # pressure crest location x-coordinate
+    y_pre = params[2] # pressure crest location y-coordinate
+    d2ydx2_pre = params[3] # curvatures at the pressuresurface crest locations
+    th_pre = params[4] # angle of the pressure surface at the trailing edge
 
     # Suction (upper) surface parameters
-    x_suc = params[5]
-    y_suc = params[6]
-    d2ydx2_suc = params[7]
-    th_suc = params[8]
+    x_suc = params[5] # suction crest location x-coordinate
+    y_suc = params[6] # suction crest location y-coordinate
+    d2ydx2_suc = params[7] # curvatures at suction surface crest locations
+    th_suc = params[8] # angle of the suction surface at the trailing edge
     cf_pre = pcoef(xte,yte,rle,x_pre,y_pre,d2ydx2_pre,th_pre,'pre') # 下表面
     cf_suc = pcoef(xte,yte,rle,x_suc,y_suc,d2ydx2_suc,th_suc,'suc') # 上表面
     coord = ppoints(cf_pre, cf_suc,xte=1.0) # 得到的是200个点的坐标, 按照逆时针顺序来的

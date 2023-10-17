@@ -80,8 +80,8 @@ class AE_B_POS_MID(nn.Module):
     
     def forward(self,x,p,mid_input): # p就是物理参数,mid_input是中弧线的点
         bs = x.shape[0]
-        x = add_position_embedding(x)
-        mid_input = add_position_embedding(mid_input)
+        # x = add_position_embedding(x)
+        # mid_input = add_position_embedding(mid_input)
         x = torch.cat((x,mid_input,p),dim=1) # (B,39,2)
         ae_input = self.mlp11(x) # (B,30,2) --> (B,30,16)
         ae_input = ae_input.reshape(bs,-1) # (B,30,16) --> (B,30*16)
