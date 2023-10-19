@@ -7,3 +7,4 @@ from .AE_B import *
 from .AE_keypoint import *
 from .AE_B_POS import *
 from .AE_B_POS_MID import *
+from .AE_B_Attention import *

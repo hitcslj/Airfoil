@@ -21,7 +21,7 @@ def parse_option():
     parser.add_argument('--num_workers',type=int,default=4)
 
     # io
-    parser.add_argument('--checkpoint_path', default='eval_result/logs_parsec/ckpt_epoch_10000.pth',help='Model checkpoint path')
+    parser.add_argument('--checkpoint_path', default='eval_result/logs_parsec_attention/ckpt_epoch_10000.pth',help='Model checkpoint path')
     parser.add_argument('--log_dir', default='./test_result/logs_parsec',
                         help='Dump dir to save visual result')
 
