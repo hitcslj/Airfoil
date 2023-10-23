@@ -6,8 +6,8 @@ import torch.nn as nn
 from tqdm import tqdm 
 from torch.utils.data import DataLoader
 
-from models import AE_B_POS_MID_Attention 
-from datasets import AirFoilDataset2
+from models import AE_B_POS_MID
+from datasets import AirFoilDatasetEdit
 
 
 def parse_option():
@@ -21,8 +21,8 @@ def parse_option():
     parser.add_argument('--num_workers',type=int,default=4)
 
     # io
-    parser.add_argument('--checkpoint_path', default='eval_result/logs_parsec_pos_mid_attention/ckpt_epoch_30000.pth',help='Model checkpoint path')
-    parser.add_argument('--log_dir', default='./test_result/logs_parsec_pos_mid_attention',
+    parser.add_argument('--checkpoint_path', default='eval_result/logs_parsec_pos_mid/ckpt_epoch_30000.pth',help='Model checkpoint path')
+    parser.add_argument('--log_dir', default='./test_result/logs_edit',
                         help='Dump dir to save visual result')
 
     parser.add_argument('--eval', default=False, action='store_true')
@@ -58,7 +58,7 @@ class Tester:
 
     @staticmethod
     def get_model(args):
-        model = AE_B_POS_MID_Attention()
+        model = AE_B_POS_MID()
  
         return model
     
@@ -112,7 +112,7 @@ class Tester:
     def test(self,args):
         import matplotlib.pyplot as plt
         """Run main training/testing pipeline."""
-        test_dataset = AirFoilDataset2(split='test')
+        test_dataset = AirFoilDatasetEdit(split='test')
         test_loader = DataLoader(test_dataset,
                                  batch_size=1,
                                  shuffle=False,

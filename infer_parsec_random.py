@@ -6,8 +6,8 @@ import torch.nn as nn
 from tqdm import tqdm 
 from torch.utils.data import DataLoader
 
-from models import AE_B_POS_MID_Attention 
-from datasets import AirFoilDataset2
+from models import AE_B_Attention
+from datasets import AirFoilDatasetRandom
 
 
 def parse_option():
@@ -21,8 +21,8 @@ def parse_option():
     parser.add_argument('--num_workers',type=int,default=4)
 
     # io
-    parser.add_argument('--checkpoint_path', default='eval_result/logs_parsec_pos_mid_attention/ckpt_epoch_30000.pth',help='Model checkpoint path')
-    parser.add_argument('--log_dir', default='./test_result/logs_parsec_pos_mid_attention',
+    parser.add_argument('--checkpoint_path', default='eval_result/logs_parsec_attention_random/ckpt_epoch_10000.pth',help='Model checkpoint path')
+    parser.add_argument('--log_dir', default='./test_result/logs_parsec_attention_random',
                         help='Dump dir to save visual result')
 
     parser.add_argument('--eval', default=False, action='store_true')
@@ -58,7 +58,7 @@ class Tester:
 
     @staticmethod
     def get_model(args):
-        model = AE_B_POS_MID_Attention()
+        model = AE_B_Attention()
  
         return model
     
@@ -75,20 +75,15 @@ class Tester:
         for _,data in enumerate(test_loader):
              
             x_sample = data['input'] # [b,20,2]
-            x_physics = data['params'] # [b,10]
-            x_mid = data['mid_input'] # [b,9,2]
-            x_physics = x_physics.unsqueeze(-1) #[b,10,1]
-            x_physics = x_physics.expand(-1,-1,2) #[b,10,2]
+            x_physics = data['params'] # [b,9]
+            x_physics = x_physics.unsqueeze(-1) #[b,9,1]
+            x_physics = x_physics.expand(-1,-1,2) #[b,9,2]
+
             x_gt = data['output'] # [b,200,2]
-            mid_gt = data['mid_output'] # [b,9,2]
             x_sample = x_sample.to(device) 
             x_physics = x_physics.to(device)
-            x_mid = x_mid.to(device)
             x_gt = x_gt.to(device)
-            mid_gt = mid_gt.to(device)
-
-            # AE
-            pred,mid_pred = model(x_sample,x_physics,x_mid) 
+            pred = model(x_sample,x_physics) # [b,20,2],[b,9,2]
 
             total_pred += x_sample.shape[0]
             # loss,_ = criterion(data,output)
@@ -112,7 +107,7 @@ class Tester:
     def test(self,args):
         import matplotlib.pyplot as plt
         """Run main training/testing pipeline."""
-        test_dataset = AirFoilDataset2(split='test')
+        test_dataset = AirFoilDatasetRandom(split='test')
         test_loader = DataLoader(test_dataset,
                                  batch_size=1,
                                  shuffle=False,
@@ -133,20 +128,16 @@ class Tester:
             fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 5))
             with torch.no_grad():
                 x_sample = data['input'] # [b,20,2]
-                x_physics = data['params'] # [b,10]
-                x_mid = data['mid_input'] # [b,9,2]
-                x_physics = x_physics.unsqueeze(-1) #[b,10,1]
-                x_physics = x_physics.expand(-1,-1,2) #[b,10,2]
+                x_physics = data['params'] # [b,9]
+                x_physics = x_physics.unsqueeze(-1) #[b,9,1]
+                x_physics = x_physics.expand(-1,-1,2) #[b,9,2]
+
                 x_gt = data['output'] # [b,200,2]
-                mid_gt = data['mid_output'] # [b,9,2]
                 x_sample = x_sample.to(device) 
                 x_physics = x_physics.to(device)
-                x_mid = x_mid.to(device)
                 x_gt = x_gt.to(device)
-                mid_gt = mid_gt.to(device)
-
-                # AE
-                output,mid_pred = model(x_sample,x_physics,x_mid) 
+                # # AE
+                output = model(x_sample,x_physics) # [b,200,2],[b,9,2]
                 data = x_gt
                 origin_x = data[0,:,0].cpu().numpy()
                 origin_y = data[0,:,1].cpu().numpy()

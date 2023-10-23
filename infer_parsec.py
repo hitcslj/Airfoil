@@ -6,7 +6,7 @@ import torch.nn as nn
 from tqdm import tqdm 
 from torch.utils.data import DataLoader
 
-from models import AE_B 
+from models import AE_B_Attention
 from datasets import AirFoilDataset2
 
 
@@ -21,7 +21,7 @@ def parse_option():
     parser.add_argument('--num_workers',type=int,default=4)
 
     # io
-    parser.add_argument('--checkpoint_path', default='eval_result/logs_parsec_attention/ckpt_epoch_10000.pth',help='Model checkpoint path')
+    parser.add_argument('--checkpoint_path', default='eval_result/logs_parsec_attention/ckpt_epoch_30000.pth',help='Model checkpoint path')
     parser.add_argument('--log_dir', default='./test_result/logs_parsec',
                         help='Dump dir to save visual result')
 
@@ -58,7 +58,7 @@ class Tester:
 
     @staticmethod
     def get_model(args):
-        model = AE_B()
+        model = AE_B_Attention()
  
         return model
     
