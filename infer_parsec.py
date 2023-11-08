@@ -6,7 +6,7 @@ import torch.nn as nn
 from tqdm import tqdm 
 from torch.utils.data import DataLoader
 
-from models import AE_B_Attention
+from models import AE_B
 from datasets import AirFoilDataset2
 
 
@@ -21,7 +21,7 @@ def parse_option():
     parser.add_argument('--num_workers',type=int,default=4)
 
     # io
-    parser.add_argument('--checkpoint_path', default='eval_result/logs_parsec_attention/ckpt_epoch_30000.pth',help='Model checkpoint path')
+    parser.add_argument('--checkpoint_path', default='eval_result/logs_parsec/ckpt_epoch_30000.pth',help='Model checkpoint path')
     parser.add_argument('--log_dir', default='./test_result/logs_parsec',
                         help='Dump dir to save visual result')
 
@@ -50,15 +50,17 @@ def load_checkpoint(args, model):
     print("=> loaded successfully '{}' (epoch {})".format(
         args.checkpoint_path, checkpoint['epoch']
     ))
+    epoch = checkpoint['epoch']
 
     del checkpoint
     torch.cuda.empty_cache()
 
+    return epoch
 class Tester:
 
     @staticmethod
     def get_model(args):
-        model = AE_B_Attention()
+        model = AE_B()
  
         return model
     
@@ -102,7 +104,10 @@ class Tester:
         accuracy = correct_pred / total_pred
         avg_loss = total_loss / total_pred
         
-        print(f"eval——epoch: {epoch}, accuracy: {accuracy}, avg_loss: {avg_loss}")
+        s = f"eval——epoch: {epoch}, accuracy: {accuracy}, avg_loss: {avg_loss}"
+        print(s)
+        with open(os.path.join(args.log_dir,'eval_result.txt'),'a') as f:
+            f.write(s+'\n')
 
     def test(self,args):
         import matplotlib.pyplot as plt
@@ -118,14 +123,14 @@ class Tester:
         model = self.get_model(args)
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         model.to(device)
-        load_checkpoint(args, model)
+        epoch = load_checkpoint(args, model)
 
 
         os.makedirs(args.log_dir, exist_ok=True)
         model.eval()
         for step, data in enumerate(test_loader):
             if step % 20 != 0: continue
-            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 5))
+            fig, (ax3, ax1, ax2) = plt.subplots(1, 3, figsize=(10, 5))
             with torch.no_grad():
                 x_sample = data['input'] # [b,20,2]
                 x_physics = data['params'] # [b,9]
@@ -157,12 +162,19 @@ class Tester:
                 # ax2.axis('off')
                 ax2.set_title('Predicted Data')
 
+                sample_x = x_sample[0,:,0].cpu().numpy()
+                sample_y = x_sample[0,:,1].cpu().numpy()
+                ax3.scatter(sample_x, sample_y, color='red', marker='o')
+                ax3.set_xlabel('X')
+                ax3.set_ylabel('Y')
+                ax3.set_title('Sample keypoints')
+
                 fig.tight_layout()
 
 
                 plt.savefig(f'{args.log_dir}/{step}_mlp.png', format='png')
                 plt.close()
-        self.evaluate_one_epoch(model,nn.MSELoss(),test_loader,device,0,args)
+        self.evaluate_one_epoch(model,nn.MSELoss(),test_loader,device,epoch,args)
 if __name__ == '__main__':
     opt = parse_option()
     # cudnn

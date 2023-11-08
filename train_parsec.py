@@ -36,7 +36,6 @@ def parse_option():
 
 
 
-
     # io
     parser.add_argument('--checkpoint_path', default='./eval_result/logs_p/ckpt_epoch_last.pth',help='Model checkpoint path')
     parser.add_argument('--log_dir', default='./eval_result/logs_parsec_attention',

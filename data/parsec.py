@@ -159,7 +159,7 @@ if __name__ == '__main__':
           file_path = os.path.join(root, file)
           # Do something with the file_path
           allData.append(file_path)
-  # allData = allData[:10]
+  allData = allData[:10]
   ## 翼型数据的横纵坐标
   xx,yy = [],[]
   for i, file_path in enumerate(allData):
@@ -209,28 +209,28 @@ if __name__ == '__main__':
   y_data_best = y_coord_data[ind_best,:]
   y_data_worst = y_coord_data[ind_worst,:]
 
-  fig,ax = plt.subplots(2)
+  fig,ax = plt.subplots(1, 2, figsize=(10, 5))
   ax[0].plot(x_coord_data,y_params_best, label='parameterized airfoil')
   ax[0].plot(x_coord_data,y_data_best, label='actual airfoil')
   ax[0].legend()
   ax[0].set_title('Best Parameterization')
-  ax[0].set_aspect(5) # hard coded
+#   ax[0].set_aspect(5) # hard coded
   ax[1].plot(x_coord_data,y_params_worst, label='parameterized airfoil')
   ax[1].plot(x_coord_data,y_data_worst, label='actual airfoil')
   ax[1].legend()
   ax[1].set_title('Worst Parameterization')
-  ax[1].set_aspect(2) # hard coded
+#   ax[1].set_aspect(2) # hard coded
   plt.tight_layout()
   plt.savefig('best_worst.png',dpi=300)
   plt.show()
 
-  # save params file, which is used by the airfoil generator
-  parsec_params_path = 'data/airfoil/parsec_params.txt'
-  # 需要再之前加入文件file_name
-  with open(parsec_params_path,'w') as f:
-    for i,path in enumerate(allData):
-      f.write(path)
-      f.write(',')
-      f.write(','.join(map(str,opt_params[i,:])))
-      f.write('\n')
+#   # save params file, which is used by the airfoil generator
+#   parsec_params_path = 'data/airfoil/parsec_params.txt'
+#   # 需要再之前加入文件file_name
+#   with open(parsec_params_path,'w') as f:
+#     for i,path in enumerate(allData):
+#       f.write(path)
+#       f.write(',')
+#       f.write(','.join(map(str,opt_params[i,:])))
+#       f.write('\n')
        

@@ -125,7 +125,7 @@ class Tester:
         model.eval()
         for step, data in enumerate(test_loader):
             if step % 20 != 0: continue
-            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 5))
+            fig, (ax3, ax1, ax2) = plt.subplots(1, 3, figsize=(10, 5))
             with torch.no_grad():
                 x_sample = data['input'] # [b,20,2]
                 x_physics = data['params'] # [b,9]
@@ -156,6 +156,13 @@ class Tester:
                 # ax2.set_aspect('equal')
                 # ax2.axis('off')
                 ax2.set_title('Predicted Data')
+
+                sample_x = x_sample[0,:,0].cpu().numpy()
+                sample_y = x_sample[0,:,1].cpu().numpy()
+                ax3.scatter(sample_x, sample_y, color='red', marker='o')
+                ax3.set_xlabel('X')
+                ax3.set_ylabel('Y')
+                ax3.set_title('Sample keypoints')
 
                 fig.tight_layout()
 

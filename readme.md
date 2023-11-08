@@ -38,6 +38,10 @@
 
 ## 基础的基于物理量的编辑
 
+> python train_editing
+
+> python infer_editing
+
 
 
 ## 实验精度记录

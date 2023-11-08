@@ -6,8 +6,9 @@ import torch.nn as nn
 from tqdm import tqdm 
 from torch.utils.data import DataLoader
 
-from models import AE_B_POS_MID_Attention 
+from models import AE_B_POS_MID
 from datasets import AirFoilDataset2
+import numpy as np
 
 
 def parse_option():
@@ -21,8 +22,8 @@ def parse_option():
     parser.add_argument('--num_workers',type=int,default=4)
 
     # io
-    parser.add_argument('--checkpoint_path', default='eval_result/logs_parsec_pos_mid_attention/ckpt_epoch_30000.pth',help='Model checkpoint path')
-    parser.add_argument('--log_dir', default='./test_result/logs_parsec_pos_mid_attention',
+    parser.add_argument('--checkpoint_path', default='eval_result/logs_parsec_pos_mid/ckpt_epoch_30000.pth',help='Model checkpoint path')
+    parser.add_argument('--log_dir', default='./test_result/logs_parsec_pos_mid',
                         help='Dump dir to save visual result')
 
     parser.add_argument('--eval', default=False, action='store_true')
@@ -58,7 +59,7 @@ class Tester:
 
     @staticmethod
     def get_model(args):
-        model = AE_B_POS_MID_Attention()
+        model = AE_B_POS_MID()
  
         return model
     
@@ -130,7 +131,7 @@ class Tester:
         model.eval()
         for step, data in enumerate(test_loader):
             if step % 20 != 0: continue
-            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 5))
+            fig, (ax3, ax1, ax2) = plt.subplots(1, 3, figsize=(10, 5))
             with torch.no_grad():
                 x_sample = data['input'] # [b,20,2]
                 x_physics = data['params'] # [b,10]
@@ -138,7 +139,7 @@ class Tester:
                 x_physics = x_physics.unsqueeze(-1) #[b,10,1]
                 x_physics = x_physics.expand(-1,-1,2) #[b,10,2]
                 x_gt = data['output'] # [b,200,2]
-                mid_gt = data['mid_output'] # [b,9,2]
+                mid_gt = data['mid_output'] # [b,99,2]
                 x_sample = x_sample.to(device) 
                 x_physics = x_physics.to(device)
                 x_mid = x_mid.to(device)
@@ -166,6 +167,12 @@ class Tester:
                 # ax2.axis('off')
                 ax2.set_title('Predicted Data')
 
+                sample_x = np.concatenate((x_sample[0,:,0].cpu().numpy(),x_mid[0,:,0].cpu().numpy()))
+                sample_y = np.concatenate((x_sample[0,:,1].cpu().numpy(),x_mid[0,:,1].cpu().numpy()))
+                ax3.scatter(sample_x, sample_y, color='red', marker='o')
+                ax3.set_xlabel('X')
+                ax3.set_ylabel('Y')
+                ax3.set_title('Sample keypoints')
                 fig.tight_layout()
 
 

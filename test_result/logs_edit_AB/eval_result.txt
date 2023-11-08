@@ -1,0 +1,1 @@
+eval——epoch: 0, accuracy: 1.0, avg_loss: 33.72187007256851 ,avg_loss1: 33.72186724291538,avg_loss2: 2.82965222357483e-06
