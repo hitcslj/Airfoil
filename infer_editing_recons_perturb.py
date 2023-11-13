@@ -12,6 +12,19 @@ from models import AE_AB,AE_A_variable,AE_B_Attention
 from datasets import AirFoilDataset2, EditingAirFoilDataset
 import math 
 
+
+nameDict = [
+    'leading edge radius',
+    'pressure crest location x-coordinate',
+    'pressure crest location y-coordinate',
+    'curvatures at the pressuresurface crest ',
+    'angle of the pressure surface at the trailing edge',
+    'suction crest location x-coordinate',
+    'suction crest location y-coordinate',
+    'curvatures at suction surface crest locations',
+    'angle of the suction surface at the trailing edge'
+]
+
 def parse_option():
     """Parse cmd arguments."""
     parser = argparse.ArgumentParser()
@@ -25,7 +38,7 @@ def parse_option():
     # io
     parser.add_argument('--checkpoint_path', default='eval_result/logs_edit_AB/cond_ckpt_epoch_100.pth',help='Model checkpoint path')
 
-    parser.add_argument('--log_dir', default='test_result/logs_edit_AB',
+    parser.add_argument('--log_dir', default='test_result/logs_edit_AB_perturb',
                         help='Dump dir to save visual result')
 
     parser.add_argument('--eval', default=False, action='store_true')
@@ -43,16 +56,17 @@ def parse_option():
 def load_checkpoint(args, model):
     """Load from checkpoint."""
     print("=> loading checkpoint '{}'".format(args.checkpoint_path))
-
     checkpoint = torch.load(args.checkpoint_path, map_location='cpu')
     model.load_state_dict(checkpoint['model'], strict=True)
     print("=> loaded successfully '{}' (epoch {})".format(
         args.checkpoint_path, checkpoint['epoch']
     ))
     epoch = checkpoint['epoch']
-    return epoch 
     del checkpoint
     torch.cuda.empty_cache()
+
+    return epoch 
+
     
 class Tester:
     @staticmethod
@@ -62,7 +76,8 @@ class Tester:
         return modelA, modelB
     
     @torch.no_grad()
-    def evaluate_one_epoch(self, model,criterion, dataloader,device, epoch, args):
+    def evaluate_one_epoch(self, model,criterion, dataloader,device, epoch, args,
+                           perturb_target_idx,strength):
         """验证一个epoch"""
         model.eval()
         
@@ -89,7 +104,8 @@ class Tester:
             target_point = target_point.to(device)
 
             # # AE
-            target_params_pred,target_point_pred = model(source_keypoint, target_keypoint, source_params) # [b,20,2],[b,20,2],[b,10,2]
+            target_params_pred,target_point_pred = model(source_keypoint, target_keypoint, source_params,perturb_target_idx=perturb_target_idx,strength=
+            strength) 
 
             loss1 = criterion(target_params_pred,target_params)
             loss2 = criterion(target_point_pred,target_point)
@@ -113,7 +129,7 @@ class Tester:
         avg_loss1 = total_loss1 / total_pred
         avg_loss2 = total_loss2 / total_pred
         
-        s = f"eval——epoch: {epoch}, accuracy: {accuracy}, avg_loss: {avg_loss} ,avg_loss1: {avg_loss1},avg_loss2: {avg_loss2}"
+        s = f"eval——epoch: {epoch}, accuracy: {accuracy}, avg_loss: {avg_loss} ,avg_loss1: {avg_loss1},avg_loss2: {avg_loss2}, perturb_target_idx: {perturb_target_idx}, strength: {strength}"
         
         print(s)
         with open(os.path.join(args.log_dir,'eval_result.txt'),'a') as f:
@@ -138,13 +154,12 @@ class Tester:
         model.to(device)
         epoch = load_checkpoint(args, model)
         model.eval()
-
         os.makedirs(args.log_dir, exist_ok=True)
-
+        perturb_target_idx,strength  = 1,5
         for step, data in enumerate(test_loader):
             if step % 1000 != 0:
                 continue 
-            fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(20, 5))
+            fig, (ax1, ax2, ax3,ax4) = plt.subplots(1, 4, figsize=(20, 5))
             with torch.no_grad():
                 source_keypoint = data['origin_input'] # [b,20,2]
                 target_keypoint = data['editing_input'] # [b,20,2]
@@ -163,9 +178,8 @@ class Tester:
                 target_point = target_point.to(device)
                 source_point = source_point.to(device)
 
-                target_params_pred,target_point_pred = model(source_keypoint, target_keypoint, source_params) # [b, 
-
-                
+                target_params_pred,target_point_pred = model(source_keypoint, target_keypoint, source_params)  
+                target_params_pred_perturb,target_point_pred_perturb = model(source_keypoint, target_keypoint, source_params,perturb_target_idx=perturb_target_idx,strength=strength)  
                 origin_x = source_point[0,:,0].cpu().numpy()
                 origin_y = source_point[0,:,1].cpu().numpy()
                 ax1.scatter(origin_x, origin_y, color='red', marker='o')
@@ -187,11 +201,20 @@ class Tester:
                 ax3.set_ylabel('Y')
                 ax3.set_title('Target pred airfoil')
 
+                outputs2_x = target_point_pred_perturb[0,:,0].cpu().numpy()
+                outputs2_y = target_point_pred_perturb[0,:,1].cpu().numpy()
+                ax4.scatter(outputs2_x, outputs2_y, color='red', marker='o')
+                ax4.set_xlabel('X')
+                ax4.set_ylabel('Y')
+                ax4.set_title('Target pred airfoil perturb')
+                ## 给图片设置总的Title
+                fig.suptitle(f'{args.log_dir}/{step}_editing_params_{perturb_target_idx}_strength_{strength}', fontsize=16)
+
                 fig.tight_layout()
 
-                plt.savefig(f'{args.log_dir}/{step}_editing.png', format='png')
+                plt.savefig(f'{args.log_dir}/{step}_editing_params_{perturb_target_idx}_strength_{strength}.png', format='png')
                 plt.close()
-        self.evaluate_one_epoch(model,nn.MSELoss(),test_loader,device,epoch,args)
+        self.evaluate_one_epoch(model,nn.MSELoss(),test_loader,device,epoch,args,perturb_target_idx,strength)
 if __name__ == '__main__':
     opt = parse_option()
     # cudnn

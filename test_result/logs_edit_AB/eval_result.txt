@@ -1,1 +1,5 @@
 eval——epoch: 0, accuracy: 1.0, avg_loss: 33.72187007256851 ,avg_loss1: 33.72186724291538,avg_loss2: 2.82965222357483e-06
+eval——epoch: 25, accuracy: 1.0, avg_loss: 33.6812583881089 ,avg_loss1: 33.68125595240316,avg_loss2: 2.435705033134888e-06
+eval——epoch: 50, accuracy: 1.0, avg_loss: 33.68743455340777 ,avg_loss1: 33.687433748204235,avg_loss2: 8.05203263128005e-07
+eval——epoch: 75, accuracy: 1.0, avg_loss: 33.68301147532784 ,avg_loss1: 33.68301067348738,avg_loss2: 8.01839135589517e-07
+eval——epoch: 100, accuracy: 1.0, avg_loss: 33.66630381503012 ,avg_loss1: 33.666303051710074,avg_loss2: 7.633209132937746e-07
