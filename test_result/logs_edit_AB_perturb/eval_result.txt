@@ -3,3 +3,4 @@ eval——epoch: 100, accuracy: 1.0, avg_loss: 33.66630381503012 ,avg_loss1: 33.
 eval——epoch: 100, accuracy: 1.0, avg_loss: 33.66630851593138 ,avg_loss1: 33.66630764724885,avg_loss2: 8.686835942914548e-07, perturb_target_idx: 0, strength: 0.5
 eval——epoch: 100, accuracy: 1.0, avg_loss: 33.66632230638323 ,avg_loss1: 33.66632114843971,avg_loss2: 1.1579428390981142e-06, perturb_target_idx: 0, strength: 1
 eval——epoch: 100, accuracy: 1.0, avg_loss: 33.66677430257455 ,avg_loss1: 33.66676590566203,avg_loss2: 8.396912881086432e-06, perturb_target_idx: 0, strength: 5
+eval——epoch: 100, accuracy: 0.6199376947040498, avg_loss: 193.83041056556195 ,avg_loss1: 193.83034201347468,avg_loss2: 6.855208506083089e-05, perturb_target_idx: 1, strength: 5
