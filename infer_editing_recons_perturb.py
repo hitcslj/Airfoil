@@ -14,15 +14,16 @@ import math
 
 
 nameDict = [
-    'leading edge radius',
-    'pressure crest location x-coordinate',
-    'pressure crest location y-coordinate',
-    'curvatures at the pressuresurface crest ',
-    'angle of the pressure surface at the trailing edge',
-    'suction crest location x-coordinate',
-    'suction crest location y-coordinate',
-    'curvatures at suction surface crest locations',
-    'angle of the suction surface at the trailing edge'
+    'leading edge radius',#  x_le
+    'pressure crest location x-coordinate',  # X_lo
+    'pressure crest location y-coordinate', # Z_lo
+    'curvatures at the pressuresurface crest ', # Z_xxlo
+    'angle of the pressure surface at the trailing edge', # \alpha_TE
+    'suction crest location x-coordinate', #  
+    'suction crest location y-coordinate', # 
+    'curvatures at suction surface crest locations', # Z_xxlo
+    'angle of the suction surface at the trailing edge' # \beta_TE
+    'diff between gt and parsec airfoil'
 ]
 
 def parse_option():

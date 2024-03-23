@@ -1,7 +1,7 @@
 import os
 
-# root_path = '/Users/liujian/Documents/实习/PJLab/商飞项目/cocodatasets/coordinates'
-root_path = 'data/airfoil/picked_uiuc'
+
+root_path = 'data/airfoil/supercritical_airfoil'
 allData = []
 ## 使用os.walk()函数遍历文件夹
 for root, dirs, files in os.walk(root_path):

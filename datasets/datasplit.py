@@ -20,7 +20,7 @@ file_test = open(rootpath+'/test.txt',mode='w')
 file_val = open(rootpath+'/val.txt',mode='w')
  
  
-path_alldata = './data/airfoil/picked_uiuc'
+path_alldata = './data/airfoil/supercritical_airfoil'
 
 file_images_real = np.empty([0, 2])
 # 文件名，xxxxx.txt
