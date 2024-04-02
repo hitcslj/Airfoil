@@ -8,9 +8,8 @@ import torch.optim as optim
 import torch.nn.functional as F
 import torch.optim.lr_scheduler as lr_scheduler
 from models import CVAE
-from datasets import AirFoilDatasetParsec 
+from dataload import AirFoilDatasetParsec 
 import math 
-from torchvision.utils import save_image
 
 
 os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
@@ -27,7 +26,7 @@ def parse_option():
     parser.add_argument('--num_workers',type=int,default=4)
     # Training
     parser.add_argument('--start_epoch', type=int, default=1)
-    parser.add_argument('--max_epoch', type=int, default=30000)
+    parser.add_argument('--max_epoch', type=int, default=10000)
     parser.add_argument('--weight_decay', type=float, default=0.0005)
     parser.add_argument("--lr", default=1e-3, type=float)
     parser.add_argument('--lrf', type=float, default=0.01)
@@ -41,10 +40,10 @@ def parse_option():
     parser.add_argument('--warmup-multiplier', type=int, default=100)
 
     # io
-    parser.add_argument('--checkpoint_path', default='./eval_result/logs_cvae/ckpt_epoch_last.pth',help='Model checkpoint path') # ./eval_result/logs_p/ckpt_epoch_last.pth
-    parser.add_argument('--log_dir', default='./eval_result/logs_cvae',
+    parser.add_argument('--checkpoint_path', default='',help='Model checkpoint path') # ./eval_result/logs_p/ckpt_epoch_last.pth
+    parser.add_argument('--log_dir', default='weights/cvae',
                         help='Dump dir to save model checkpoint')
-    parser.add_argument('--val_freq', type=int, default=100)  # epoch-wise
+    parser.add_argument('--val_freq', type=int, default=1000)  # epoch-wise
     parser.add_argument('--save_freq', type=int, default=10000)  # epoch-wise
     
 
@@ -68,8 +67,8 @@ def load_checkpoint(args, model, optimizer, scheduler):
     except Exception:
         args.start_epoch = 1
     model.load_state_dict(checkpoint['model'], strict=True)
-    # optimizer.load_state_dict(checkpoint['optimizer'])
-    # scheduler.load_state_dict(checkpoint['scheduler'])
+    optimizer.load_state_dict(checkpoint['optimizer'])
+    scheduler.load_state_dict(checkpoint['scheduler'])
 
     print("=> loaded successfully '{}' (epoch {})".format(
         args.checkpoint_path, checkpoint['epoch']
@@ -139,10 +138,6 @@ class Trainer:
     @staticmethod
     def get_optimizer(args,model):
         params = [p for p in model.parameters() if p.requires_grad]
-        # optimizer = optim.SGD(params,
-        #                       lr = args.lr*0.1,
-        #                       momentum = 0.9,
-        #                       weight_decay = 5E-5)
         optimizer = optim.AdamW(params,
                               lr = args.lr,
                               weight_decay=args.weight_decay)
@@ -164,7 +159,6 @@ class Trainer:
             condition = condition.to(device)
             optimizer.zero_grad()
 
-            # # AE
             recon_batch, mu, logvar = model(gt,condition) # [b,257,2],[b,37,2]
 
             loss = loss_function(recon_batch, gt, mu, logvar)
@@ -230,16 +224,15 @@ class Trainer:
 
         train_loader, val_loader = self.get_loaders(args) 
         optimizer = self.get_optimizer(args,model)
-        # criterion = chamfer_distance
         # Scheduler https://arxiv.org/pdf/1812.01187.pdf
         lf = lambda x: ((1 + math.cos(x * math.pi / args.max_epoch)) / 2) * (1 - args.lrf) + args.lrf  # cosine
         scheduler = lr_scheduler.LambdaLR(optimizer, lr_lambda=lf)
       
  
-        # # Check for a checkpoint
-        # if args.checkpoint_path:
-        #     assert os.path.isfile(args.checkpoint_path)
-        #     load_checkpoint(args, model, optimizer, scheduler)
+        # Check for a checkpoint
+        if len(args.checkpoint_path)>0:
+            assert os.path.isfile(args.checkpoint_path)
+            load_checkpoint(args, model, optimizer, scheduler)
             
         for epoch in range(args.start_epoch,args.max_epoch+1):
             # train

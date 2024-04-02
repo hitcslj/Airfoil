@@ -8,7 +8,7 @@ import torch.optim as optim
  
 import torch.optim.lr_scheduler as lr_scheduler
 from models import AE_A_Parsec
-from datasets import EditingDataset
+from dataload import EditingDataset
 import math 
     
 def parse_option():
@@ -20,7 +20,7 @@ def parse_option():
     parser.add_argument('--num_workers',type=int,default=4)
     # Training
     parser.add_argument('--start_epoch', type=int, default=1)
-    parser.add_argument('--max_epoch', type=int, default=30000)
+    parser.add_argument('--max_epoch', type=int, default=10000)
     parser.add_argument('--weight_decay', type=float, default=0.0005)
     parser.add_argument("--lr", default=1e-3, type=float)
     parser.add_argument('--lrf', type=float, default=0.01)
@@ -34,10 +34,10 @@ def parse_option():
     parser.add_argument('--warmup-multiplier', type=int, default=100)
 
     # io
-    parser.add_argument('--checkpoint_path', default='',help='Model checkpoint path') # ./eval_result/logs_edit_A_parsec/cond_ckpt_epoch_210.pth
-    parser.add_argument('--log_dir', default='./eval_result/logs_edit_A_parsec',
+    parser.add_argument('--checkpoint_path', default='',help='Model checkpoint path') 
+    parser.add_argument('--log_dir', default='weights/logs_edit_parsec',
                         help='Dump dir to save model checkpoint')
-    parser.add_argument('--val_freq', type=int, default=100)  # epoch-wise
+    parser.add_argument('--val_freq', type=int, default=1000)  # epoch-wise
     parser.add_argument('--save_freq', type=int, default=10000)  # epoch-wise
     
 
@@ -84,7 +84,7 @@ def save_checkpoint(args, epoch, model, optimizer, scheduler, save_cur=False):
             'epoch': epoch
         }
         os.makedirs(args.log_dir, exist_ok=True)
-        spath = os.path.join(args.log_dir, f'cond_ckpt_epoch_{epoch}.pth')
+        spath = os.path.join(args.log_dir, f'ckpt_epoch_{epoch}.pth')
         state['save_path'] = spath
         torch.save(state, spath)
         print("Saved in {}".format(spath))
@@ -115,7 +115,7 @@ class Trainer:
         return train_loader,val_loader
 
     @staticmethod
-    def get_model(args):
+    def get_model():
         model = AE_A_Parsec()
         return model
 
@@ -196,7 +196,7 @@ class Trainer:
         """Run main training/evaluation pipeline."""
         
         # 单卡训练
-        model = self.get_model(args)
+        model = self.get_model()
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         model.to(device)
 

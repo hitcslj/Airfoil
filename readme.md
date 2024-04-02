@@ -1,61 +1,51 @@
-# 使用说明：
+# Airfoil-training
+
+Editing keypoint &amp; parameters, built upon [pytorch](https://pytorch.org/)
 
 
 
-## 模型的总体预览图
+## Installation
 
-![总览图](./source/model_overview.jpg)
+```bash
+conda create --name airfoil python=3.8
+conda activate airfoil
+pip install -r requirements.txt
+```
 
-![source/model_framework.png](./source/model_framework.png)
+## Dataset
 
-## 环境配置
+请将数据集存放在 `data` 文件夹下, 默认数据集为 `data/airfoil/supercritical_airfoil/*.dat`
 
-> pip install -r requirements.txt
+在项目的dataload文件夹下:
+```bash
+# split train/val/test
+python datasplit.py 
 
-
-## 基础的encoder - decoder
-
-输入：N个点 (N,2)
-
-输出：N个点 (N,2)
-
-> python train.py # 训练模型
-
-
-> python infer.py # 测试模型
-
-
-## 基础的基于物理量重建
+# generate parsec feature
+python parsec_direct.py 
+```
 
 
-输入：n （n = N/10）个关键点 + 8个物理量  {'input':input,'output':data,'params':params}
+## Usage
 
-输出：N个点 (N,2)
+在项目的根文件夹下:
 
-> python train_parsec.py # 训练模型
+```bash
+# train cvae condition on keypoint&parsec
+python train_cvae.py
 
-> python infer_parsec.py # 测试模型
+# train editing parsec: source_param,target_param,source_keypoint -> target_keypoint 
+python train_editing_parsec.py
 
-## 基础的基于物理量的编辑
+# join train editing parsec&cvae: source_param,target_param,source_keypoint -> target_point
+python train_editing_parsec_recons.py
 
-> python train_editing
+# train editing keypoint: source_keypoint,target_keypoint,source_param -> target_param
+python train_editing_keypoint.py
 
-> python infer_editing
+# train editing keypoint &cvae: source_keypoint,target_keypoint,source_param -> target_point
+python train_editing_keypoint_recons.py
 
-
-
-## 实验精度记录
-
-200个点，l2损失: 2.5987829166718574e-07(30000ep)
-
-sample 20个点，l2损失:1.485746088780964e-4(30000ep)
-
-20个点+10个物理量，l2损失: 3.921557338764113e-06 （10000ep）
-
-20个点+10个物理量+引入position embedding，l2损失: 4.803270279751077e-06 (20000ep)
-
-20个点+10个物理量+引入position embedding+中弧线，l2损失: 
-
-
-
-
+# refinement test
+python infer_editing_parsec_refine.py
+```

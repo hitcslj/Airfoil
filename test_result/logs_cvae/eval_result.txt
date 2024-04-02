@@ -1,8 +1,0 @@
-eval——epoch: 10000, accuracy: 1.0, avg_loss: 3.5344925060816955e-08
-eval——epoch: 10000, accuracy: 1.0, avg_loss: 3.475228702735459e-08
-eval——epoch: 10000, accuracy: 1.0, avg_loss: 3.4762789470714024e-08
-eval——epoch: 10000, accuracy: 1.0, avg_loss: 3.7171978684271937e-08
-eval——epoch: 10000, accuracy: 1.0, avg_loss: 1.1792296216602457e-06
-eval——epoch: 10000, accuracy: 1.0, avg_loss: 1.184803684534725e-06
-eval——epoch: 10000, accuracy: 1.0, avg_loss: 3.648361241559428e-08
-eval——epoch: 10000, accuracy: 1.0, avg_loss: 3.800555153452321e-08

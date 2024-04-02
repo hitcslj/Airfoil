@@ -8,7 +8,7 @@ import torch.optim as optim
  
 import torch.optim.lr_scheduler as lr_scheduler
 from models import AE_A_Keypoint,CVAE,AE_AB
-from datasets import EditingDataset
+from dataload import EditingDataset
 import math 
     
 def parse_option():
@@ -37,14 +37,14 @@ def parse_option():
 
 
     # io
-    parser.add_argument('--checkpoint_path_A', default='./eval_result/logs_edit_A_keypoint/cond_ckpt_epoch_10000.pth',help='Model checkpoint path')
+    parser.add_argument('--checkpoint_path_A', default='./eval_result/logs_edit_keypoint/ckpt_epoch_10000.pth',help='Model checkpoint path')
 
     parser.add_argument('--checkpoint_path_B', default='./eval_result/logs_cvae/ckpt_epoch_10000.pth',help='Model checkpoint path')
 
     parser.add_argument('--log_dir', default='./eval_result/logs_edit_keypoint_AB_cvae',
                         help='Dump dir to save model checkpoint')
-    parser.add_argument('--val_freq', type=int, default=100)  # epoch-wise
-    parser.add_argument('--save_freq', type=int, default=1000)  # epoch-wise
+    parser.add_argument('--val_freq', type=int, default=1000)  # epoch-wise
+    parser.add_argument('--save_freq', type=int, default=10000)  # epoch-wise
     
 
     # 评测指标相关
@@ -86,7 +86,7 @@ def save_checkpoint(args, epoch, model, optimizer, scheduler, save_cur=False):
             'epoch': epoch
         }
         os.makedirs(args.log_dir, exist_ok=True)
-        spath = os.path.join(args.log_dir, f'cond_ckpt_epoch_{epoch}.pth')
+        spath = os.path.join(args.log_dir, f'ckpt_epoch_{epoch}.pth')
         state['save_path'] = spath
         torch.save(state, spath)
         print("Saved in {}".format(spath))

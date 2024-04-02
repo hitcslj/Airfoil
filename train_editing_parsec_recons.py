@@ -7,8 +7,8 @@ from torch.utils.data import DataLoader
 import torch.optim as optim 
  
 import torch.optim.lr_scheduler as lr_scheduler
-from models import AE_A_Parsec,CVAE,AE_AB_parsec
-from datasets import EditingDataset
+from models import AE_A_Parsec,CVAE,AE_AB_Parsec
+from dataload import EditingDataset
 import math 
     
 def parse_option():
@@ -37,11 +37,11 @@ def parse_option():
 
 
     # io
-    parser.add_argument('--checkpoint_path_A', default='./eval_result/logs_edit_A_parsec/cond_ckpt_epoch_10000.pth',help='Model checkpoint path')
+    parser.add_argument('--checkpoint_path_A', default='./weights/logs_edit_parsec/ckpt_epoch_10000.pth',help='Model checkpoint path')
 
-    parser.add_argument('--checkpoint_path_B', default='./eval_result/logs_cvae/ckpt_epoch_10000.pth',help='Model checkpoint path')
+    parser.add_argument('--checkpoint_path_B', default='./weights/logs_cvae/ckpt_epoch_10000.pth',help='Model checkpoint path')
 
-    parser.add_argument('--log_dir', default='./eval_result/logs_edit_parsec_AB_cvae',
+    parser.add_argument('--log_dir', default='./weights/logs_edit_parsec_cvae',
                         help='Dump dir to save model checkpoint')
     parser.add_argument('--val_freq', type=int, default=100)  # epoch-wise
     parser.add_argument('--save_freq', type=int, default=1000)  # epoch-wise
@@ -86,7 +86,7 @@ def save_checkpoint(args, epoch, model, optimizer, scheduler, save_cur=False):
             'epoch': epoch
         }
         os.makedirs(args.log_dir, exist_ok=True)
-        spath = os.path.join(args.log_dir, f'cond_ckpt_epoch_{epoch}.pth')
+        spath = os.path.join(args.log_dir, f'ckpt_epoch_{epoch}.pth')
         state['save_path'] = spath
         torch.save(state, spath)
         print("Saved in {}".format(spath))
@@ -245,11 +245,10 @@ class Trainer:
             assert os.path.isfile(args.checkpoint_path_B)
             load_checkpoint(args,args.checkpoint_path_B, modelB)
 
-        model = AE_AB_parsec(modelA,modelB)
+        model = AE_AB_Parsec(modelA,modelB)
         model.to(device)
         train_loader, val_loader = self.get_loaders(args) 
         optimizer = self.get_optimizer(args,model)
-        # criterion = nn.L1Loss()
         criterion = nn.MSELoss()
         # criterion = chamfer_distance
         # Scheduler https://arxiv.org/pdf/1812.01187.pdf

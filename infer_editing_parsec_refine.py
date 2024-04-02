@@ -8,10 +8,10 @@ from torch.utils.data import DataLoader
 
 import torch.optim as optim 
 import torch.optim.lr_scheduler as lr_scheduler
-from models import AE_AB_parsec,AE_A_Parsec,CVAE
-from datasets import EditingDataset
+from models import AE_AB_Parsec,AE_A_Parsec,CVAE
+from dataload import EditingDataset
 import math 
-from fit_airfoil_extract_feature import Fit_airfoil
+from dataload.parsec_direct import Fit_airfoil
 from collections import Counter
 
 parsec_features = ['rle','xup','yup','yxxup','xlo','ylo','yxxlo','yteup','ytelo','alphate','betate']
@@ -29,7 +29,7 @@ def parse_option():
     parser.add_argument('--num_workers',type=int,default=4)
 
     # io
-    parser.add_argument('--checkpoint_path', default='eval_result/logs_edit_parsec_AB_cvae/cond_ckpt_epoch_1000.pth',help='Model checkpoint path')
+    parser.add_argument('--checkpoint_path', default='logs/logs_edit_parsec_cvae/ckpt_epoch_1000.pth',help='Model checkpoint path')
 
     parser.add_argument('--log_dir', default='test_result/refine_editing_parsec',
                         help='Dump dir to save visual result')
@@ -142,7 +142,7 @@ class Tester:
         test_loader = tqdm(test_loader)
         print(f"length of validating dataset: {n_data_test}")
         modelA, model_B = self.get_model(args)
-        model = AE_AB_parsec(modelA,model_B)
+        model = AE_AB_Parsec(modelA,model_B)
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         model.to(device)
         epoch = load_checkpoint(args, model)

@@ -1,15 +1,14 @@
-import argparse
 import os
+import math 
+import argparse
 import torch
-import torch.nn as nn
-from tqdm import tqdm 
+from torch import nn
 from torch.utils.data import DataLoader
 import torch.optim as optim 
- 
 import torch.optim.lr_scheduler as lr_scheduler
+from tqdm import tqdm
 from models import AE_A_Keypoint
-from datasets import EditingDataset
-import math 
+from dataload import EditingDataset
     
 def parse_option():
     """Parse cmd arguments."""
@@ -20,7 +19,7 @@ def parse_option():
     parser.add_argument('--num_workers',type=int,default=4)
     # Training
     parser.add_argument('--start_epoch', type=int, default=1)
-    parser.add_argument('--max_epoch', type=int, default=30000)
+    parser.add_argument('--max_epoch', type=int, default=10000)
     parser.add_argument('--weight_decay', type=float, default=0.0005)
     parser.add_argument("--lr", default=1e-3, type=float)
     parser.add_argument('--lrf', type=float, default=0.01)
@@ -34,10 +33,10 @@ def parse_option():
     parser.add_argument('--warmup-multiplier', type=int, default=100)
 
     # io
-    parser.add_argument('--checkpoint_path', default='',help='Model checkpoint path') # ./eval_result/logs_edit_A_parsec/cond_ckpt_epoch_210.pth
-    parser.add_argument('--log_dir', default='./eval_result/logs_edit_A_keypoint',
+    parser.add_argument('--checkpoint_path', default='',help='Model checkpoint path')  
+    parser.add_argument('--log_dir', default='weights/logs_edit_keypoint',
                         help='Dump dir to save model checkpoint')
-    parser.add_argument('--val_freq', type=int, default=100)  # epoch-wise
+    parser.add_argument('--val_freq', type=int, default=1000)  # epoch-wise
     parser.add_argument('--save_freq', type=int, default=10000)  # epoch-wise
     
 
@@ -61,8 +60,8 @@ def load_checkpoint(args, model, optimizer, scheduler):
     except Exception:
         args.start_epoch = 1
     model.load_state_dict(checkpoint['model'], strict=True)
-    # optimizer.load_state_dict(checkpoint['optimizer'])
-    # scheduler.load_state_dict(checkpoint['scheduler'])
+    optimizer.load_state_dict(checkpoint['optimizer'])
+    scheduler.load_state_dict(checkpoint['scheduler'])
 
     print("=> loaded successfully '{}' (epoch {})".format(
         args.checkpoint_path, checkpoint['epoch']
@@ -84,7 +83,7 @@ def save_checkpoint(args, epoch, model, optimizer, scheduler, save_cur=False):
             'epoch': epoch
         }
         os.makedirs(args.log_dir, exist_ok=True)
-        spath = os.path.join(args.log_dir, f'cond_ckpt_epoch_{epoch}.pth')
+        spath = os.path.join(args.log_dir, f'ckpt_epoch_{epoch}.pth')
         state['save_path'] = spath
         torch.save(state, spath)
         print("Saved in {}".format(spath))
@@ -115,7 +114,7 @@ class Trainer:
         return train_loader,val_loader
 
     @staticmethod
-    def get_model(args):
+    def get_model():
         model = AE_A_Keypoint()
         return model
 
@@ -138,7 +137,7 @@ class Trainer:
             source_keypoint = data['source_keypoint'] # [b,26,2]
             target_keypoint = data['target_keypoint'] # [b,26,2]
             source_param = data['source_param'].unsqueeze(-1).expand(-1,-1,2) # [b,11,2]
-            target_param = data['target_param'].unsqueeze(-1) # [b,11,2]
+            target_param = data['target_param'].unsqueeze(-1) # [b,11,1]
             source_keypoint = source_keypoint.to(device) 
             target_keypoint = target_keypoint.to(device) 
             source_param = source_param.to(device)
@@ -166,7 +165,6 @@ class Trainer:
         """验证一个epoch"""
         model.eval()
         
-        correct_pred = 0  # 预测正确的样本数量
         total_pred = 0  # 总共的样本数量
         total_loss = 0.0
 
@@ -199,15 +197,14 @@ class Trainer:
         """Run main training/evaluation pipeline."""
         
         # 单卡训练
-        model = self.get_model(args)
+        model = self.get_model()
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         model.to(device)
 
         train_loader, val_loader = self.get_loaders(args) 
         optimizer = self.get_optimizer(args,model)
-        # criterion = nn.L1Loss()
         criterion = nn.MSELoss()
-        # criterion = chamfer_distance
+ 
         # Scheduler https://arxiv.org/pdf/1812.01187.pdf
         lf = lambda x: ((1 + math.cos(x * math.pi / args.max_epoch)) / 2) * (1 - args.lrf) + args.lrf  # cosine
         scheduler = lr_scheduler.LambdaLR(optimizer, lr_lambda=lf)
