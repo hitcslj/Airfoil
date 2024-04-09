@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader
 import torch.optim as optim 
  
 import torch.optim.lr_scheduler as lr_scheduler
-from models import AE_A_Keypoint,CVAE,AE_AB
+from models import AE_A_Keypoint,CVAE,AE_AB_Keypoint
 from dataload import EditingDataset
 import math 
     
@@ -245,7 +245,7 @@ class Trainer:
             assert os.path.isfile(args.checkpoint_path_B)
             load_checkpoint(args,args.checkpoint_path_B, modelB)
 
-        model = AE_AB(modelA,modelB)
+        model = AE_AB_Keypoint(modelA,modelB)
         model.to(device)
         train_loader, val_loader = self.get_loaders(args) 
         optimizer = self.get_optimizer(args,model)
