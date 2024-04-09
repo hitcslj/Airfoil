@@ -105,7 +105,7 @@ def read_file(file_path):
 
 
 def write_parsec_params(file_path, parsec_features):
-    parsec_params_path = 'data/airfoil/parsec_params_direct.txt'
+    parsec_params_path = f'data/airfoil/parsec_params_direct_{dataset_name}.txt'
     with open(parsec_params_path, 'a') as f:
         f.write(file_path)
         f.write(',')
@@ -120,7 +120,8 @@ def process_file(file_path):
 
 
 if __name__ == '__main__':
-    root_path = '/home/aiia611/Airfoil/data/airfoil/supercritical_airfoil'
+    dataset_name = 'supercritical_airfoil'
+    root_path = f'data/airfoil/{dataset_name}'
     file_paths = []
     for root, dirs, files in os.walk(root_path):
         for file in files:

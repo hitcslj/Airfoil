@@ -94,3 +94,85 @@ class EditingDataset(Dataset):
     
     def __len__(self):
         return len(self.txt_list)
+    
+
+class AirFoilMixParsec(Dataset):
+    """Dataset for shape datasets(coco & 机翼)"""
+    def __init__(self,split = 'train',
+                 dataset_names = ['r05','r06', 'supercritical_airfoil'],
+                 ):
+        self.split = split
+        txt_list = []
+        for dataset_name in dataset_names:
+            with open(f'data/airfoil/{dataset_name}_{split}.txt') as f:
+                  txt_list += [os.path.join(f'data/airfoil/{dataset_name}',line.rstrip().strip('\n') + '.dat',) 
+                              for line in f.readlines()]
+        self.txt_list = txt_list
+        params = {}
+        for dataset_name in dataset_names:
+          with open(f'data/airfoil/parsec_params_direct_{dataset_name}.txt') as f:
+              for line in f.readlines():
+                  name_params = line.rstrip().strip('\n').split(',')
+                  # 取出路径的最后一个文件名作为key
+                  name = name_params[0].split('/')[-1].split('.')[0]
+                  params[name] = list(map(float,name_params[1:]))
+        self.params = params
+    
+    def __getitem__(self, index):
+        """Get current batch for input index"""
+        txt_path = self.txt_list[index]
+        key = txt_path.split('/')[-1].split('.')[0]
+        params = self.params[key]
+        data = get_data(txt_path)
+        input = data[::10] # 25个点
+        params = torch.FloatTensor(params)
+        return {'keypoint':input,'gt':data,'params':params}
+    
+    def __len__(self):
+        return len(self.txt_list)
+
+
+class EditingMixDataset(Dataset):
+    """Dataset for shape datasets(coco & 机翼)"""
+    def __init__(self,split = 'train',
+                 dataset_names = ['r05','r06', 'supercritical_airfoil'],
+                 ):
+        self.split = split
+        txt_list = []
+        for dataset_name in dataset_names:
+            with open(f'data/airfoil/{dataset_name}_{split}.txt') as f:
+                  txt_list += [os.path.join(f'data/airfoil/{dataset_name}',line.rstrip().strip('\n') + '.dat',) 
+                              for line in f.readlines()]
+        self.txt_list = txt_list
+        params = {}
+        for dataset_name in dataset_names:
+          with open(f'data/airfoil/parsec_params_direct_{dataset_name}.txt') as f:
+              for line in f.readlines():
+                  name_params = line.rstrip().strip('\n').split(',')
+                  # 取出路径的最后一个文件名作为key
+                  name = name_params[0].split('/')[-1].split('.')[0]
+                  params[name] = list(map(float,name_params[1:]))
+        self.params = params
+
+    def __getitem__(self, index):
+        """Get current batch for input index"""
+        index2 = np.random.randint(len(self.txt_list))
+        txt_path1 = self.txt_list[index]
+        txt_path2 = self.txt_list[index2]
+        key1 = txt_path1.split('/')[-1].split('.')[0]
+        key2 = txt_path2.split('/')[-1].split('.')[0]
+        params1 = torch.FloatTensor(self.params[key1])
+        params2 = torch.FloatTensor(self.params[key2])
+        source = get_data(txt_path1)
+        target = get_data(txt_path2)
+        source_keypoint = source[::10] # 26个点
+        target_keypoint = target[::10] # 26个点
+        return {'source_keypoint':source_keypoint,'source_point':source,'source_param':params1,
+                'target_keypoint':target_keypoint,'target_point':target,'target_param':params2}
+    
+    def __len__(self):
+        return len(self.txt_list)
+  
+if __name__ == '__main__':
+    dataset = AirFoilMixParsec()
+    print(dataset[0])

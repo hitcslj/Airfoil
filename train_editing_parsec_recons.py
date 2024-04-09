@@ -8,7 +8,7 @@ import torch.optim as optim
  
 import torch.optim.lr_scheduler as lr_scheduler
 from models import AE_A_Parsec,CVAE,AE_AB_Parsec
-from dataload import EditingDataset
+from dataload import EditingMixDataset
 import math 
     
 def parse_option():
@@ -20,7 +20,7 @@ def parse_option():
     parser.add_argument('--num_workers',type=int,default=4)
     # Training
     parser.add_argument('--start_epoch', type=int, default=1)
-    parser.add_argument('--max_epoch', type=int, default=10000)
+    parser.add_argument('--max_epoch', type=int, default=2000)
     parser.add_argument('--weight_decay', type=float, default=0.0005)
     parser.add_argument("--lr", default=1e-3, type=float)
     parser.add_argument('--lrf', type=float, default=0.01)
@@ -98,8 +98,8 @@ class Trainer:
 
     def get_datasets(self):
         """获得训练、验证 数据集"""
-        train_dataset = EditingDataset(split='train')
-        val_dataset = EditingDataset(split='val')
+        train_dataset = EditingMixDataset(split='train')
+        val_dataset = EditingMixDataset(split='val')
         return train_dataset, val_dataset
     
     def get_loaders(self,args):
