@@ -16,13 +16,16 @@ pip install -r requirements.txt
 
 请将数据集存放在 `data` 文件夹下, 默认数据集为 `data/airfoil/supercritical_airfoil/*.dat`
 
-在项目的dataload文件夹下:
+在项目的根文件夹下:
 ```bash
+# interpolate airfoil to specified number of points
+python dataload/interpolate.py 
+
 # split train/val/test
-python datasplit.py 
+python dataload/datasplit.py 
 
 # generate parsec feature
-python parsec_direct.py 
+python dataload/parsec_direct.py 
 ```
 
 
@@ -32,7 +35,7 @@ python parsec_direct.py
 
 ```bash
 # train cvae condition on keypoint&parsec
-python train_cvae.py
+python train_cvae_y.py
 
 # train editing parsec: source_param,target_param,source_keypoint -> target_keypoint 
 python train_editing_parsec.py

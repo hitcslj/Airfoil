@@ -11,15 +11,18 @@ class AE_AB_Parsec(nn.Module):
 
 
     def editing_params(self,source_param,target_param,source_keypoint): 
+        '''
+        source_param: (b,11,1)
+        target_param: (b,11,1)
+        source_keypoint: (b,26,1)
+        '''
         target_keypoint_pred = self.modelA(source_param,target_param,source_keypoint)
-        target_param = target_param.expand(-1,-1,2) # (b,11,2)
         condition = torch.cat((target_param,target_keypoint_pred),dim=1)
         target_point_pred = self.modelB.sample(condition) 
         return target_point_pred
 
     def forward(self,source_param,target_param,source_keypoint): 
         target_keypoint_pred = self.modelA(source_param,target_param,source_keypoint)
-        target_param = target_param.expand(-1,-1,2) # (b,11,2)
         condition = torch.cat((target_param,target_keypoint_pred),dim=1)
         target_point_pred = self.modelB.sample(condition) 
         return target_keypoint_pred,target_point_pred
@@ -48,17 +51,19 @@ class AE_AB_Keypoint(nn.Module):
     
 
 
-    def editing_point(self,source_keypoint,target_keypoint,source_param): # y就是物理参数
-        source_param = source_param.expand(-1,-1,2)
+    def editing_point(self,source_keypoint,target_keypoint,source_param): 
+        '''
+        source_keypoint: (b,26,1)
+        target_keypoint: (b,26,1)
+        source_param: (b,11,1)
+        '''
         target_param_pred = self.modelA(source_keypoint,target_keypoint,source_param)
-        target_param_pred = target_param_pred.expand(-1,-1,2)
         condition = torch.cat((target_param_pred,target_keypoint),dim=1)
         target_point_pred = self.modelB.sample(condition) 
         return target_point_pred
 
     def forward(self,source_keypoint,target_keypoint,source_param):  
         target_param_pred = self.modelA(source_keypoint,target_keypoint,source_param)
-        target_param_pred = target_param_pred.expand(-1,-1,2)
         condition = torch.cat((target_param_pred,target_keypoint),dim=1)
         target_point_pred = self.modelB.sample(condition) 
         return target_param_pred,target_point_pred

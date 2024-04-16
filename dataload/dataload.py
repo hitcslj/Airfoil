@@ -174,5 +174,5 @@ class EditingMixDataset(Dataset):
         return len(self.txt_list)
   
 if __name__ == '__main__':
-    dataset = AirFoilMixParsec()
+    dataset = EditingMixDataset()
     print(dataset[0])

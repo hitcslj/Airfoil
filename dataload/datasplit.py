@@ -11,7 +11,7 @@ val_percent = 0.15
 test_percent = 0.15
 
 rootpath = 'data/airfoil'
-dataset_name = 'supercritical_airfoil'
+dataset_name = 'interpolated_uiuc'
 
 #创建文件
 if not os.path.exists(rootpath):

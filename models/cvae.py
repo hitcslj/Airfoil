@@ -49,7 +49,11 @@ class CVAE(nn.Module):
     def forward(self, x, c):
         mu, logvar = self.encode(x.reshape(-1, self.feature_size), c.reshape(-1,self.condition_size))
         z = self.reparameterize(mu, logvar)
-        return self.decode(z, c.reshape(-1,self.condition_size)), mu, logvar
+        recons = self.decode(z, c.reshape(-1,self.condition_size))
+        # 对recons 要求和c保持一致
+        # vaild = self.discriminator(recons, c)
+
+        return recons, mu, logvar
 
     def sample(self,c):
         batch = c.shape[0]

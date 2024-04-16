@@ -14,12 +14,12 @@ def parse_option():
     """Parse cmd arguments."""
     parser = argparse.ArgumentParser()
     # Data
-    parser.add_argument('--batch_size', type=int, default=256,
+    parser.add_argument('--batch_size', type=int, default=512,
                         help='Batch Size during training')
-    parser.add_argument('--num_workers',type=int,default=4)
+    parser.add_argument('--num_workers',type=int,default=8)
     # Training
     parser.add_argument('--start_epoch', type=int, default=1)
-    parser.add_argument('--max_epoch', type=int, default=2000)
+    parser.add_argument('--max_epoch', type=int, default=1001)
     parser.add_argument('--weight_decay', type=float, default=0.0005)
     parser.add_argument("--lr", default=1e-3, type=float)
     parser.add_argument('--lrf', type=float, default=0.01)
@@ -37,7 +37,7 @@ def parse_option():
     parser.add_argument('--log_dir', default='weights/logs_edit_keypoint',
                         help='Dump dir to save model checkpoint')
     parser.add_argument('--val_freq', type=int, default=1000)  # epoch-wise
-    parser.add_argument('--save_freq', type=int, default=1000)  # epoch-wise
+    parser.add_argument('--save_freq', type=int, default=1)  # epoch-wise
     
 
     # 评测指标相关
@@ -134,9 +134,9 @@ class Trainer:
         train_loss = 0
         total_pred = 0  # 总共的样本数量
         for _,data in enumerate(tqdm(dataloader)):
-            source_keypoint = data['source_keypoint'] # [b,26,2]
-            target_keypoint = data['target_keypoint'] # [b,26,2]
-            source_param = data['source_param'].unsqueeze(-1).expand(-1,-1,2) # [b,11,2]
+            source_keypoint = data['source_keypoint'][:,:,1:2] # [b,26,1]
+            target_keypoint = data['target_keypoint'][:,:,1:2] # [b,26,1]
+            source_param = data['source_param'].unsqueeze(-1) # [b,11,1]
             target_param = data['target_param'].unsqueeze(-1) # [b,11,1]
             source_keypoint = source_keypoint.to(device) 
             target_keypoint = target_keypoint.to(device) 
@@ -171,9 +171,9 @@ class Trainer:
         test_loader = tqdm(dataloader)
         for _,data in enumerate(test_loader):
              
-            source_keypoint = data['source_keypoint'] # [b,26,2]
-            target_keypoint = data['target_keypoint'] # [b,26,2]
-            source_param = data['source_param'].unsqueeze(-1).expand(-1,-1,2) # [b,11,2]
+            source_keypoint = data['source_keypoint'][:,:,1:2] # [b,26,1]
+            target_keypoint = data['target_keypoint'][:,:,1:2] # [b,26,1]
+            source_param = data['source_param'].unsqueeze(-1) # [b,11,1]
             target_param = data['target_param'].unsqueeze(-1) # [b,11,1]
             source_keypoint = source_keypoint.to(device) 
             target_keypoint = target_keypoint.to(device) 
@@ -227,6 +227,7 @@ class Trainer:
                                  )
             scheduler.step()
             # save model and validate
+            args.val_freq = 1
             if epoch % args.val_freq == 0:
                 save_checkpoint(args, epoch, model, optimizer, scheduler)
                 print("Validation begin.......")

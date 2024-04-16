@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader
 import torch.optim as optim 
  
 import torch.optim.lr_scheduler as lr_scheduler
-from models import AE_A_Keypoint,CVAE,AE_AB_Keypoint
+from models import AE_A_Keypoint,CVAE_Y,AE_AB_Keypoint
 from dataload import EditingMixDataset
 import math 
     
@@ -15,12 +15,12 @@ def parse_option():
     """Parse cmd arguments."""
     parser = argparse.ArgumentParser()
     # Data
-    parser.add_argument('--batch_size', type=int, default=256,
+    parser.add_argument('--batch_size', type=int, default=512,
                         help='Batch Size during training')
     parser.add_argument('--num_workers',type=int,default=4)
     # Training
     parser.add_argument('--start_epoch', type=int, default=1)
-    parser.add_argument('--max_epoch', type=int, default=2000)
+    parser.add_argument('--max_epoch', type=int, default=1001)
     parser.add_argument('--weight_decay', type=float, default=0.0005)
     parser.add_argument("--lr", default=1e-3, type=float)
     parser.add_argument('--lrf', type=float, default=0.01)
@@ -33,18 +33,15 @@ def parse_option():
     parser.add_argument('--warmup-epoch', type=int, default=-1)
     parser.add_argument('--warmup-multiplier', type=int, default=100)
 
-
-
-
     # io
-    parser.add_argument('--checkpoint_path_A', default='./eval_result/logs_edit_keypoint/ckpt_epoch_10000.pth',help='Model checkpoint path')
+    parser.add_argument('--checkpoint_path_A', default='./weights/logs_edit_keypoint/ckpt_epoch_1.pth',help='Model checkpoint path')
 
-    parser.add_argument('--checkpoint_path_B', default='./eval_result/logs_cvae/ckpt_epoch_10000.pth',help='Model checkpoint path')
+    parser.add_argument('--checkpoint_path_B', default='./weights/cvae_y_cross_attention/ckpt_epoch_1000.pth',help='Model checkpoint path')
 
-    parser.add_argument('--log_dir', default='./eval_result/logs_edit_keypoint_AB_cvae',
+    parser.add_argument('--log_dir', default='./logs/logs_edit_keypoint_AB_cvae',
                         help='Dump dir to save model checkpoint')
     parser.add_argument('--val_freq', type=int, default=1000)  # epoch-wise
-    parser.add_argument('--save_freq', type=int, default=1000)  # epoch-wise
+    parser.add_argument('--save_freq', type=int, default=1)  # epoch-wise
     
 
     # 评测指标相关
@@ -63,8 +60,6 @@ def load_checkpoint(args,path, model):
 
     checkpoint = torch.load(path, map_location='cpu')
     model.load_state_dict(checkpoint['model'], strict=True)
-    # optimizer.load_state_dict(checkpoint['optimizer'])
-    # scheduler.load_state_dict(checkpoint['scheduler'])
 
     print("=> loaded successfully  (epoch {})".format(
         checkpoint['epoch']
@@ -119,7 +114,7 @@ class Trainer:
     @staticmethod
     def get_model(args):
         modelA = AE_A_Keypoint()
-        modelB = CVAE(257*2,20,74)
+        modelB = CVAE_Y()
         return modelA,modelB
 
     @staticmethod
@@ -136,21 +131,16 @@ class Trainer:
         """训练一个epoch"""
         model.train()  # set model to training mode
         for _,data in enumerate(tqdm(dataloader)):
-            source_keypoint = data['source_keypoint'] # [b,26,2]
-            target_keypoint = data['target_keypoint'] # [b,26,2]
-            source_param = data['source_param'] # [b,10]
-            target_param = data['target_param'] # [b,10]
-            # source_point = data['source_point']
-            target_point = data['target_point'] # [b,257,2]
-            
-            source_param = source_param.unsqueeze(-1).expand(-1,-1,2) #[b,10,2]
-            target_param = target_param.unsqueeze(-1).expand(-1,-1,2) #[b,10,2]
-
+            source_keypoint = data['source_keypoint'][:,:,1:2] # [b,26,1]
+            target_keypoint = data['target_keypoint'][:,:,1:2] # [b,26,1]
+            target_point = data['target_point'][:,:,1:2] # [b,257,1]
+            source_param = data['source_param'].unsqueeze(-1) # [b,11,1]
+            target_param = data['target_param'].unsqueeze(-1) # [b,11,1]
             source_keypoint = source_keypoint.to(device) 
             target_keypoint = target_keypoint.to(device) 
+            target_point = target_point.to(device)
             source_param = source_param.to(device)
             target_param = target_param.to(device)
-            target_point = target_point.to(device)
           
             optimizer.zero_grad()
 
@@ -181,21 +171,16 @@ class Trainer:
         test_loader = tqdm(dataloader)
         for _,data in enumerate(test_loader):
             
-            source_keypoint = data['source_keypoint'] # [b,26,2]
-            target_keypoint = data['target_keypoint'] # [b,26,2]
-            source_param = data['source_param'] # [b,10]
-            target_param = data['target_param'] # [b,10]
-            # source_point = data['source_point']
-            target_point = data['target_point'] # [b,257,2]
-            
-            source_param = source_param.unsqueeze(-1).expand(-1,-1,2) #[b,10,2]
-            target_param = target_param.unsqueeze(-1).expand(-1,-1,2) #[b,10,2]
-
+            source_keypoint = data['source_keypoint'][:,:,1:2] # [b,26,1]
+            target_keypoint = data['target_keypoint'][:,:,1:2] # [b,26,1]
+            target_point = data['target_point'][:,:,1:2] # [b,257,1]
+            source_param = data['source_param'].unsqueeze(-1) # [b,11,1]
+            target_param = data['target_param'].unsqueeze(-1) # [b,11,1]
             source_keypoint = source_keypoint.to(device) 
             target_keypoint = target_keypoint.to(device) 
+            target_point = target_point.to(device)
             source_param = source_param.to(device)
             target_param = target_param.to(device)
-            target_point = target_point.to(device)
         
 
             # # AE
@@ -268,6 +253,7 @@ class Trainer:
                                  )
             scheduler.step()
             # save model and validate
+            args.val_freq = 1
             if epoch % args.val_freq == 0:
                 save_checkpoint(args, epoch, model, optimizer, scheduler)
                 print("Validation begin.......")

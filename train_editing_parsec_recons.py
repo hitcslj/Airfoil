@@ -7,20 +7,23 @@ from torch.utils.data import DataLoader
 import torch.optim as optim 
  
 import torch.optim.lr_scheduler as lr_scheduler
-from models import AE_A_Parsec,CVAE,AE_AB_Parsec
+from models import AE_A_Parsec,CVAE_Y,AE_AB_Parsec
 from dataload import EditingMixDataset
 import math 
+from utils import vis_airfoil3
+from dataload.parsec_direct import Fit_airfoil
+import numpy as np
     
 def parse_option():
     """Parse cmd arguments."""
     parser = argparse.ArgumentParser()
     # Data
-    parser.add_argument('--batch_size', type=int, default=256,
+    parser.add_argument('--batch_size', type=int, default=512,
                         help='Batch Size during training')
     parser.add_argument('--num_workers',type=int,default=4)
     # Training
     parser.add_argument('--start_epoch', type=int, default=1)
-    parser.add_argument('--max_epoch', type=int, default=2000)
+    parser.add_argument('--max_epoch', type=int, default=1001)
     parser.add_argument('--weight_decay', type=float, default=0.0005)
     parser.add_argument("--lr", default=1e-3, type=float)
     parser.add_argument('--lrf', type=float, default=0.01)
@@ -33,18 +36,15 @@ def parse_option():
     parser.add_argument('--warmup-epoch', type=int, default=-1)
     parser.add_argument('--warmup-multiplier', type=int, default=100)
 
-
-
-
     # io
-    parser.add_argument('--checkpoint_path_A', default='./weights/logs_edit_parsec/ckpt_epoch_10000.pth',help='Model checkpoint path')
+    parser.add_argument('--checkpoint_path_A', default='weights/logs_edit_parsec/ckpt_epoch_1.pth',help='Model checkpoint path')
 
-    parser.add_argument('--checkpoint_path_B', default='./weights/logs_cvae/ckpt_epoch_10000.pth',help='Model checkpoint path')
+    parser.add_argument('--checkpoint_path_B', default='weights/cvae_y_cross_attention/ckpt_epoch_1000.pth',help='Model checkpoint path')
 
     parser.add_argument('--log_dir', default='./weights/logs_edit_parsec_cvae',
                         help='Dump dir to save model checkpoint')
     parser.add_argument('--val_freq', type=int, default=100)  # epoch-wise
-    parser.add_argument('--save_freq', type=int, default=1000)  # epoch-wise
+    parser.add_argument('--save_freq', type=int, default=500)  # epoch-wise
     
 
     # 评测指标相关
@@ -119,7 +119,7 @@ class Trainer:
     @staticmethod
     def get_model(args):
         modelA = AE_A_Parsec()
-        modelB = CVAE(257*2,20,74)
+        modelB = CVAE_Y()
         return modelA,modelB
 
     @staticmethod
@@ -136,21 +136,16 @@ class Trainer:
         """训练一个epoch"""
         model.train()  # set model to training mode
         for _,data in enumerate(tqdm(dataloader)):
-            source_keypoint = data['source_keypoint'] # [b,26,2]
-            target_keypoint = data['target_keypoint'] # [b,26,2]
-            source_param = data['source_param'] # [b,11]
-            target_param = data['target_param'] # [b,11]
-            # source_point = data['source_point']
-            target_point = data['target_point'] # [b,257,2]
-            
-            source_param = source_param.unsqueeze(-1) #[b,11,2]
-            target_param = target_param.unsqueeze(-1) #[b,11,2]
-
+            source_keypoint = data['source_keypoint'][:,:,1:2] # [b,26,1]
+            target_keypoint = data['target_keypoint'][:,:,1:2] # [b,26,1]
+            target_point = data['target_point'][:,:,1:2] # [b,257,1]
+            source_param = data['source_param'].unsqueeze(-1) # [b,11,1]
+            target_param = data['target_param'].unsqueeze(-1) # [b,11,1]
             source_keypoint = source_keypoint.to(device) 
             target_keypoint = target_keypoint.to(device) 
+            target_point = target_point.to(device)
             source_param = source_param.to(device)
             target_param = target_param.to(device)
-            target_point = target_point.to(device)
           
             optimizer.zero_grad()
 
@@ -166,7 +161,7 @@ class Trainer:
             # 参数更新
             optimizer.step()            
         # 打印loss
-        print(f"train——epoch: {epoch}, loss: {loss.item()}, loss1: {loss1.item()}, loss2: {loss2.item()}")  
+        print(f"train——epoch: {epoch}, loss: {loss.item()}, keypoint loss: {loss1.item()}, full loss: {loss2.item()}")  
 
 
     @torch.no_grad()
@@ -177,26 +172,22 @@ class Trainer:
         correct_pred = 0  # 预测正确的样本数量
         total_pred = 0  # 总共的样本数量
         total_loss = total_loss1 = total_loss2 = 0.0
-
+        total_parsec_loss = [0.0]*11
         test_loader = tqdm(dataloader)
         for _,data in enumerate(test_loader):
             
-            source_keypoint = data['source_keypoint'] # [b,26,2]
-            target_keypoint = data['target_keypoint'] # [b,26,2]
-            source_param = data['source_param'] # [b,11]
-            target_param = data['target_param'] # [b,11]
-            # source_point = data['source_point']
-            target_point = data['target_point'] # [b,257,2]
-            
-            source_param = source_param.unsqueeze(-1) #[b,11,2]
-            target_param = target_param.unsqueeze(-1) #[b,11,2]
-
+            source_point = data['source_point'] # [n,257,2]
+            x = data['target_point'][0,:,0] # [257]
+            source_keypoint = data['source_keypoint'][:,:,1:2] # [b,26,1]
+            target_keypoint = data['target_keypoint'][:,:,1:2] # [b,26,1]
+            target_point = data['target_point'][:,:,1:2] # [b,257,1]
+            source_param = data['source_param'].unsqueeze(-1) # [b,11,1]
+            target_param = data['target_param'].unsqueeze(-1) # [b,11,1]
             source_keypoint = source_keypoint.to(device) 
             target_keypoint = target_keypoint.to(device) 
+            target_point = target_point.to(device)
             source_param = source_param.to(device)
             target_param = target_param.to(device)
-            target_point = target_point.to(device)
-          
 
             # # AE
             target_keypoint_pred,target_point_pred = model(source_param, target_param, source_keypoint)
@@ -209,21 +200,37 @@ class Trainer:
             total_loss += loss1.item()+loss2.item()
             total_pred += source_keypoint.shape[0]
             # 判断样本是否预测正确
-            distances = torch.norm(target_point - target_point_pred,dim=2) #(B,200)
+            distances = torch.norm(target_point - target_point_pred,dim=-1) #(B,200)
             # 点的直线距离小于t，说明预测值和真实值比较接近，认为该预测值预测正确
             t = args.distance_threshold
-            # 200个点中，预测正确的点的比例超过ratio，认为该形状预测正确
+            # 257个点中，预测正确的点的比例超过ratio，认为该形状预测正确
             ratio = args.threshold_ratio
-            count = (distances < t).sum(1) #(B) 一个样本中预测坐标和真实坐标距离小于t的点的个数
-            correct_count = (count >= ratio*200).sum().item() # batch_size数量的样本中，正确预测样本的个数
+            count = (distances < t).sum(dim=1) #(B) 一个样本中预测坐标和真实坐标距离小于t的点的个数
+            correct_count = (count >= ratio*257).sum().item() # batch_size数量的样本中，正确预测样本的个数
             correct_pred += correct_count
+
+            # 统计一下物理量之间的误差
+            for idx in range(source_keypoint.shape[0]):
+                # 给他们拼接同一个x坐标
+                source = source_point[idx].numpy() # [257,2]
+                target = target_point[idx,:,0].cpu().numpy() # [257]
+                target_pred = target_point_pred[idx,:,0].detach().cpu().numpy() # [257]
+
+                target_pred = np.stack([x,target_pred],axis=1)
+                target = np.stack([x,target],axis=1)
+                source_parsec = Fit_airfoil(target).parsec_features
+                target_parsec = Fit_airfoil(target_pred).parsec_features
+                for i in range(11):
+                    total_parsec_loss[i] += abs(source_parsec[i]-target_parsec[i])/(abs(target_parsec[i])+1e-9)
+                if idx < 5 :
+                  vis_airfoil3(source,target_pred,target,epoch+idx,dir_name='logs/cvae_y_recons',sample_type='cvae')
             
         accuracy = correct_pred / total_pred
         avg_loss = total_loss / total_pred
         avg_loss1 = total_loss1 / total_pred
         avg_loss2 = total_loss2 / total_pred
         
-        print(f"eval——epoch: {epoch}, accuracy: {accuracy}, avg_loss: {avg_loss} ,avg_loss1: {avg_loss1},avg_loss2: {avg_loss2}")
+        print(f"eval——epoch: {epoch}, accuracy: {accuracy}, avg_loss: {avg_loss} ,keypoint loss: {avg_loss1},full loss: {avg_loss2}")
  
 
     def main(self,args):
@@ -255,7 +262,7 @@ class Trainer:
         lf = lambda x: ((1 + math.cos(x * math.pi / args.max_epoch)) / 2) * (1 - args.lrf) + args.lrf  # cosine
         scheduler = lr_scheduler.LambdaLR(optimizer, lr_lambda=lf)
             
-        for epoch in range(args.max_epoch+1):
+        for epoch in range(1,args.max_epoch+1):
             # train
             self.train_one_epoch(model=model,
                                  optimizer=optimizer,

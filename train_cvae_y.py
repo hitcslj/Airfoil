@@ -1,4 +1,3 @@
-import argparse
 import os
 import torch
 import torch.nn as nn
@@ -7,15 +6,20 @@ from torch.utils.data import DataLoader
 import torch.optim as optim 
 import torch.nn.functional as F
 import torch.optim.lr_scheduler as lr_scheduler
-from models import CVAE
+from models import CVAE_Y
 from dataload import AirFoilMixParsec, Fit_airfoil
 import math 
 from utils import vis_airfoil2
 import random
+import argparse
+import numpy as np
 
+attention_type = 'cross'
+logs_name = f'cvae_y_{attention_type}_attention'
+os.makedirs(f'logs/{logs_name}',exist_ok=True)
+os.makedirs(f'weights/{logs_name}',exist_ok=True)
 
 os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
-
 
 def parse_option():
     """Parse cmd arguments."""
@@ -28,7 +32,7 @@ def parse_option():
     parser.add_argument('--num_workers',type=int,default=8)
     # Training
     parser.add_argument('--start_epoch', type=int, default=1)
-    parser.add_argument('--max_epoch', type=int, default=2000)
+    parser.add_argument('--max_epoch', type=int, default=1101)
     parser.add_argument('--weight_decay', type=float, default=0.0005)
     parser.add_argument("--lr", default=1e-3, type=float)
     parser.add_argument('--lrf', type=float, default=0.01)
@@ -42,11 +46,11 @@ def parse_option():
     parser.add_argument('--warmup-multiplier', type=int, default=100)
 
     # io
-    parser.add_argument('--checkpoint_path', default='weights/cvae/ckpt_epoch_1000.pth',help='Model checkpoint path') # ./eval_result/logs_p/ckpt_epoch_last.pth
-    parser.add_argument('--log_dir', default='weights/cvae',
+    parser.add_argument('--checkpoint_path', default='weights/cvae_y_cross_attention/ckpt_epoch_1000.pth',help='Model checkpoint path') # ./eval_result/logs_p/ckpt_epoch_last.pth
+    parser.add_argument('--log_dir', default=f'weights/{logs_name}',
                         help='Dump dir to save model checkpoint')
-    parser.add_argument('--val_freq', type=int, default=1000)  # epoch-wise
-    parser.add_argument('--save_freq', type=int, default=1000)  # epoch-wise
+    parser.add_argument('--val_freq', type=int, default=100)  # epoch-wise
+    parser.add_argument('--save_freq', type=int, default=100)  # epoch-wise
     
 
     # 评测指标相关
@@ -81,7 +85,7 @@ def load_checkpoint(args, model, optimizer, scheduler):
 
 # Reconstruction + KL divergence losses summed over all elements and batch
 def loss_function(recon_x, x, mu, logvar):
-    recons = nn.MSELoss()(recon_x, x.view(-1, 257*2))
+    recons = nn.MSELoss()(recon_x, x)
     # see Appendix B from VAE paper:
     # Kingma and Welling. Auto-Encoding Variational Bayes. ICLR, 2014
     # https://arxiv.org/abs/1312.6114
@@ -124,8 +128,8 @@ class Trainer:
 
     def get_datasets(self):
         """获得训练、验证 数据集"""
-        train_dataset = AirFoilMixParsec(split='train')
-        val_dataset = AirFoilMixParsec(split='val')
+        train_dataset = AirFoilMixParsec(split='train',dataset_names=['r05','r06','supercritical_airfoil','interpolated_uiuc'])
+        val_dataset = AirFoilMixParsec(split='val',dataset_names=['r05','r06','supercritical_airfoil','interpolated_uiuc'])
         return train_dataset, val_dataset
     
     def get_loaders(self,args):
@@ -144,7 +148,7 @@ class Trainer:
 
     @staticmethod
     def get_model(args):
-        model = CVAE(257*2,args.latent_size,74)
+        model = CVAE_Y(attention_type=attention_type)
         return model
 
     @staticmethod
@@ -160,27 +164,32 @@ class Trainer:
     def train_one_epoch(self,model,optimizer,dataloader,device,epoch):
         """训练一个epoch"""
         model.train()  # set model to training mode
+        total_loss = 0
+        total_pred = 0
         for _,data in enumerate(tqdm(dataloader)):
-            keypoint = data['keypoint'] # [b,26,2]
+            keypoint = data['keypoint'][:,:,1:2] # [b,26,1]
+            gt = data['gt'][:,:,1:2] # [b,257,1]
             physics = data['params'] # [b,11]
-            physics = physics.unsqueeze(-1) #[b,11,1]
-            physics = physics.expand(-1,-1,2) #[b,11,2]
+            physics = physics.unsqueeze(-1) # [b,11,1]
             condition = torch.cat([physics,keypoint],dim=1)
-            gt = data['gt'] # [b,257,2]
-            gt = gt.to(device)
             condition = condition.to(device)
+            gt = gt.to(device)
             optimizer.zero_grad()
 
-            recon_batch, mu, logvar = model(gt,condition) # [b,257,2],[b,37,2]
+            recon_batch, mu, logvar = model(gt,condition) # [b,257],[b,37] -> [b,257]
 
             loss = loss_function(recon_batch, gt, mu, logvar)
+
+            total_loss += loss.item()
+            total_pred += keypoint.shape[0]
             # 反向传播
             loss.backward()
             # 参数更新
-            optimizer.step()            
+            optimizer.step()    
+        total_loss = total_loss / total_pred        
         # 打印loss
         print('====> Epoch: {} Average loss: {:.8f}'.format(
-          epoch, loss.item()))
+          epoch, total_loss))
 
 
     @torch.no_grad()
@@ -192,60 +201,136 @@ class Trainer:
         
         correct_pred = 0  # 预测正确的样本数量
         total_pred = 0  # 总共的样本数量
-        total_loss = 0.0
+        total_loss = recons_loss = 0.0
 
         test_loader = tqdm(dataloader)
         for _,data in enumerate(test_loader):
-             
-            keypoint = data['keypoint'] # [b,26,2]
+            
+            keypoint = data['keypoint'][:,:,1:2] # [b,26,1]
+            x = data['gt'][0,:,0] # [257]
+            gt = data['gt'][:,:,1:2] # [b,257,1]
             physics = data['params'] # [b,11]
-            physics = physics.unsqueeze(-1) #[b,11,1]
-            physics = physics.expand(-1,-1,2) #[b,11,2]
+            physics = physics.unsqueeze(-1) # [b,11,1]
             condition = torch.cat([physics,keypoint],dim=1)
-            gt = data['gt'] # [b,257,2]
-            gt = gt.to(device)
             condition = condition.to(device)
-            # # AE
-            recon_batch, mu, logvar = model(gt,condition) # gt:[b,257,2], condition:[b,37,2] 
+            gt = gt.to(device)
+
+            recon_batch, mu, logvar = model(gt,condition) # [b,257],[b,37] -> [b,257]
+
 
             total_pred += keypoint.shape[0]
-            # loss,_ = criterion(data,output)
             loss = loss_function(recon_batch, gt, mu, logvar)
+            recons_loss += nn.MSELoss()(recon_batch, gt)
             total_loss += loss.item()
             # 判断样本是否预测正确
-            distances = torch.norm(gt - recon_batch.reshape(-1,257,2),dim=2) #(B,257)
+            distances = torch.norm(gt - recon_batch,dim=-1) #(B,257)
 
             # 点的直线距离小于t，说明预测值和真实值比较接近，认为该预测值预测正确
             t = args.distance_threshold
-            # 200个点中，预测正确的点的比例超过ratio，认为该形状预测正确
+            # 257个点中，预测正确的点的比例超过ratio，认为该形状预测正确
             ratio = args.threshold_ratio
             count = (distances < t).sum(1) #(B) 一个样本中预测坐标和真实坐标距离小于t的点的个数
-            correct_count = (count >= ratio*200).sum().item() # batch_size数量的样本中，正确预测样本的个数
+            correct_count = (count >= ratio*257).sum().item() # batch_size数量的样本中，正确预测样本的个数
             correct_pred += correct_count
-            
+
             # 统计一下物理量之间的误差
             for idx in range(recon_batch.shape[0]):
-                recon_batch = recon_batch.reshape(-1,257,2)
-                source = recon_batch[idx].detach().cpu().numpy()
-                target = gt[idx].detach().cpu().numpy()
+                # 给他们拼接同一个x坐标
+                source = recon_batch[idx,:,0].detach().cpu().numpy() # [257]
+                target = gt[idx,:,0].detach().cpu().numpy() # [257]
+                source = np.stack([x,source],axis=1)
+                target = np.stack([x,target],axis=1)
                 source_parsec = Fit_airfoil(source).parsec_features
                 target_parsec = Fit_airfoil(target).parsec_features
                 for i in range(11):
                     total_parsec_loss[i] += abs(source_parsec[i]-target_parsec[i])/(abs(target_parsec[i])+1e-9)
+                # if idx < 5 and epoch % 100 == 0:
+                #   vis_airfoil2(source,target,epoch+idx,dir_name='logs/cvae_y',sample_type='cvae')
+
+        accuracy = correct_pred / total_pred
+        avg_loss = total_loss / total_pred
+        recons_loss = recons_loss / total_pred
+        avg_parsec_loss = [x/total_pred for x in total_parsec_loss]
+        
+        print(f"eval——epoch: {epoch}, accuracy: {accuracy}, avg_loss: {avg_loss}, recons_loss: {recons_loss}")
+        print(f"eval——epoch: {epoch}, avg_parsec_loss: {avg_parsec_loss}")
+        # 保存评测结果
+        with open(f'logs/{logs_name}/eval_result.txt','a') as f:
+            f.write(f"eval——epoch: {epoch}, accuracy: {accuracy}, avg_loss: {avg_loss}\n")
+            f.write(f"eval——epoch: {epoch}, avg_parsec_loss: {avg_parsec_loss}\n")
+    
+
+    @torch.no_grad()
+    def infer(self, model, dataloader,device, epoch, args):
+        """验证一个epoch"""
+        model.eval()
+
+        total_parsec_loss = [0]*11
+        
+        correct_pred = 0  # 预测正确的样本数量
+        total_pred = 0  # 总共的样本数量
+        total_loss = 0.0
+
+        test_loader = tqdm(dataloader)
+        for _,data in enumerate(test_loader):
+            
+            keypoint = data['keypoint'][:,:,1:2] # [b,26,1]
+            x = data['gt'][0,:,0] # [257]
+            gt = data['gt'][:,:,1:2] # [b,257,1]
+            physics = data['params'] # [b,11]
+            physics = physics.unsqueeze(-1) # [b,11,1]
+            condition = torch.cat([physics,keypoint],dim=1)
+            condition = condition.to(device)
+            gt = gt.to(device)
+
+            z = torch.randn((gt.shape[0],args.latent_size)).to(device)
+            recon_batch = model.decode(z,condition).reshape(-1,x.shape[0],1) # [b,20],[b,37,1] -> [b,257,1]
+
+            total_pred += keypoint.shape[0]
+
+            loss = nn.MSELoss()(recon_batch, gt)
+            total_loss += loss.item()
+            # 判断样本是否预测正确
+            distances = torch.norm(gt - recon_batch,dim=-1) #(B,257)
+
+            # 点的直线距离小于t，说明预测值和真实值比较接近，认为该预测值预测正确
+            t = args.distance_threshold
+            # 257个点中，预测正确的点的比例超过ratio，认为该形状预测正确
+            ratio = args.threshold_ratio
+            count = (distances < t).sum(dim=1) #(B) 一个样本中预测坐标和真实坐标距离小于t的点的个数
+            correct_count = (count >= ratio*257).sum().item() # batch_size数量的样本中，正确预测样本的个数
+            correct_pred += correct_count
+
+            # 统计一下物理量之间的误差
+            for idx in range(recon_batch.shape[0]):
+                # 给他们拼接同一个x坐标
+                source = recon_batch[idx][:,0].detach().cpu().numpy() # [257]
+                target = gt[idx][:,0].detach().cpu().numpy() # [257]
+
+                # 需要check 一下为啥x直接就是numpy格式
+                source = np.stack([x,source],axis=1)
+                target = np.stack([x,target],axis=1)
+                source_parsec = Fit_airfoil(source).parsec_features
+                target_parsec = Fit_airfoil(target).parsec_features
+                for i in range(11):
+                    total_parsec_loss[i] += abs(source_parsec[i]-target_parsec[i])
                 if idx < 5:
-                  vis_airfoil2(source,target,idx,dir_name='logs/cvae',sample_type='cvae')
+                  vis_airfoil2(source,target,epoch+idx,dir_name=f'logs/{logs_name}',sample_type='cvae')
 
         accuracy = correct_pred / total_pred
         avg_loss = total_loss / total_pred
         avg_parsec_loss = [x/total_pred for x in total_parsec_loss]
         
-        print(f"eval——epoch: {epoch}, accuracy: {accuracy}, avg_loss: {avg_loss}")
-        print(f"eval——epoch: {epoch}, avg_parsec_loss: {avg_parsec_loss}")
- 
+        print(f"infer——epoch: {epoch}, accuracy: {accuracy}, avg_loss: {avg_loss}")
+        print(f"infer——epoch: {epoch}, avg_parsec_loss: {avg_parsec_loss}")
+        # 保存评测结果
+        with open(f'logs/{logs_name}/infer_result.txt','a') as f:
+            f.write(f"infer——epoch: {epoch}, accuracy: {accuracy}, avg_loss: {avg_loss}\n")
+            f.write(f"infer——epoch: {epoch}, avg_parsec_loss: {avg_parsec_loss}\n")
 
     def main(self,args):
         """Run main training/evaluation pipeline."""
-        
+
         # 单卡训练
         model = self.get_model(args)
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -264,7 +349,7 @@ class Trainer:
             load_checkpoint(args, model, optimizer, scheduler)
             
         for epoch in range(args.start_epoch,args.max_epoch+1):
-            # train
+            # # train
             self.train_one_epoch(model=model,
                                  optimizer=optimizer,
                                  dataloader=train_loader,
@@ -273,6 +358,7 @@ class Trainer:
                                  )
             scheduler.step()
             # save model and validate
+            # args.val_freq = 1
             if epoch % args.val_freq == 0:
                 save_checkpoint(args, epoch, model, optimizer, scheduler)
                 print("Validation begin.......")
@@ -282,7 +368,13 @@ class Trainer:
                     device=device, 
                     epoch=epoch, 
                     args=args)
-                return 
+                self.infer(
+                    model=model,
+                    dataloader=val_loader,
+                    device=device, 
+                    epoch=epoch, 
+                    args=args)
+           
           
                 
 

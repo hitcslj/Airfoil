@@ -4,7 +4,6 @@ from scipy import optimize
 import matplotlib.pyplot as plt
 from multiprocessing import Pool
 import os
-import torch
 
 class Fit_airfoil():
     '''
@@ -120,7 +119,7 @@ def process_file(file_path):
 
 
 if __name__ == '__main__':
-    dataset_name = 'supercritical_airfoil'
+    dataset_name = 'interpolated_uiuc'
     root_path = f'data/airfoil/{dataset_name}'
     file_paths = []
     for root, dirs, files in os.walk(root_path):
