@@ -36,7 +36,7 @@ def interpolate(data,s_x = 100, t_x = 129):
     mid = data[s_x:s_x+1]
     down = data[s_x+1:]  # 下表面原来为100个点，插值为128个点
 
-    theta = np.linspace(np.pi, 2*np.pi, n_x)
+    theta = np.linspace(np.pi, 2*np.pi, t_x)
     x_coords = (np.cos(theta) + 1.0) / 2
     x_coords = x_coords[1:]  # 从小到大
     
