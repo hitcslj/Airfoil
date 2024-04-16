@@ -99,7 +99,7 @@ class EditingDataset(Dataset):
 class AirFoilMixParsec(Dataset):
     """Dataset for shape datasets(coco & 机翼)"""
     def __init__(self,split = 'train',
-                 dataset_names = ['r05','r06', 'supercritical_airfoil'],
+                 dataset_names = ['r05','r06', 'supercritical_airfoil','interpolated_uiuc'],
                  ):
         self.split = split
         txt_list = []
@@ -135,7 +135,7 @@ class AirFoilMixParsec(Dataset):
 class EditingMixDataset(Dataset):
     """Dataset for shape datasets(coco & 机翼)"""
     def __init__(self,split = 'train',
-                 dataset_names = ['r05','r06', 'supercritical_airfoil'],
+                 dataset_names = ['r05','r06', 'supercritical_airfoil','interpolated_uiuc'],
                  ):
         self.split = split
         txt_list = []

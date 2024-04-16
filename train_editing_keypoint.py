@@ -36,8 +36,8 @@ def parse_option():
     parser.add_argument('--checkpoint_path', default='',help='Model checkpoint path')  
     parser.add_argument('--log_dir', default='weights/logs_edit_keypoint',
                         help='Dump dir to save model checkpoint')
-    parser.add_argument('--val_freq', type=int, default=1000)  # epoch-wise
-    parser.add_argument('--save_freq', type=int, default=1)  # epoch-wise
+    parser.add_argument('--val_freq', type=int, default=100)  # epoch-wise
+    parser.add_argument('--save_freq', type=int, default=500)  # epoch-wise
     
 
     # 评测指标相关
@@ -198,7 +198,7 @@ class Trainer:
         
         # 单卡训练
         model = self.get_model()
-        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        device = torch.device('cuda:1' if torch.cuda.is_available() else 'cpu')
         model.to(device)
 
         train_loader, val_loader = self.get_loaders(args) 
@@ -227,7 +227,6 @@ class Trainer:
                                  )
             scheduler.step()
             # save model and validate
-            args.val_freq = 1
             if epoch % args.val_freq == 0:
                 save_checkpoint(args, epoch, model, optimizer, scheduler)
                 print("Validation begin.......")

@@ -29,7 +29,7 @@ def parse_option():
                         help='Batch Size during training')
     parser.add_argument('--latent_size', type=int, default=20,
                         help='Batch Size during training')
-    parser.add_argument('--num_workers',type=int,default=8)
+    parser.add_argument('--num_workers',type=int,default=4)
     # Training
     parser.add_argument('--start_epoch', type=int, default=1)
     parser.add_argument('--max_epoch', type=int, default=1101)
@@ -46,11 +46,11 @@ def parse_option():
     parser.add_argument('--warmup-multiplier', type=int, default=100)
 
     # io
-    parser.add_argument('--checkpoint_path', default='weights/cvae_y_cross_attention/ckpt_epoch_1000.pth',help='Model checkpoint path') # ./eval_result/logs_p/ckpt_epoch_last.pth
+    parser.add_argument('--checkpoint_path', default='',help='Model checkpoint path') # ./eval_result/logs_p/ckpt_epoch_last.pth
     parser.add_argument('--log_dir', default=f'weights/{logs_name}',
                         help='Dump dir to save model checkpoint')
     parser.add_argument('--val_freq', type=int, default=100)  # epoch-wise
-    parser.add_argument('--save_freq', type=int, default=100)  # epoch-wise
+    parser.add_argument('--save_freq', type=int, default=500)  # epoch-wise
     
 
     # 评测指标相关
@@ -128,8 +128,8 @@ class Trainer:
 
     def get_datasets(self):
         """获得训练、验证 数据集"""
-        train_dataset = AirFoilMixParsec(split='train',dataset_names=['r05','r06','supercritical_airfoil','interpolated_uiuc'])
-        val_dataset = AirFoilMixParsec(split='val',dataset_names=['r05','r06','supercritical_airfoil','interpolated_uiuc'])
+        train_dataset = AirFoilMixParsec(split='train')
+        val_dataset = AirFoilMixParsec(split='val')
         return train_dataset, val_dataset
     
     def get_loaders(self,args):
@@ -333,7 +333,7 @@ class Trainer:
 
         # 单卡训练
         model = self.get_model(args)
-        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
         model.to(device)
 
         train_loader, val_loader = self.get_loaders(args) 
