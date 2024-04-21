@@ -50,6 +50,7 @@ python eval_editing_cvae_gan.py
 
 ```
 
+train and eval $\textbf{PK-VAE}^2$ 
 
 ```bash
 # train pkvae condition on keypoint&parsec
