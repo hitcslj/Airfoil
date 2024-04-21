@@ -1,5 +1,5 @@
-# Airfoil-training
-
+# $\textbf{PK-VAE}^2$: Controllable and Editable Airfoil Generation with Physics and Keypoint
+ 
 Editing keypoint &amp; parameters, built upon [pytorch](https://pytorch.org/)
 
 
