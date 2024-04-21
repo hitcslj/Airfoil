@@ -1,10 +1,8 @@
 import torch
 from torch.utils.data import Dataset,DataLoader
 import os
-import torchvision.transforms as transforms
 import numpy as np
 import matplotlib.pyplot as plt
-import random
 
 
 def get_data(txt_path):
@@ -156,7 +154,10 @@ class EditingMixDataset(Dataset):
 
     def __getitem__(self, index):
         """Get current batch for input index"""
-        index2 = np.random.randint(len(self.txt_list))
+        if self.split == 'train':
+            index2 = np.random.randint(len(self.txt_list))
+        else:
+            index2 = (index + 1) % len(self.txt_list)
         txt_path1 = self.txt_list[index]
         txt_path2 = self.txt_list[index2]
         key1 = txt_path1.split('/')[-1].split('.')[0]
@@ -167,6 +168,7 @@ class EditingMixDataset(Dataset):
         target = get_data(txt_path2)
         source_keypoint = source[::10] # 26个点
         target_keypoint = target[::10] # 26个点
+        # print(txt_path1,txt_path2)
         return {'source_keypoint':source_keypoint,'source_point':source,'source_param':params1,
                 'target_keypoint':target_keypoint,'target_point':target,'target_param':params2}
     
@@ -174,5 +176,8 @@ class EditingMixDataset(Dataset):
         return len(self.txt_list)
   
 if __name__ == '__main__':
-    dataset = EditingMixDataset()
-    print(dataset[0])
+    dataset = EditingMixDataset(split='train')
+    dataloader = DataLoader(dataset,batch_size=1,shuffle=False)
+    for i,data in enumerate(dataloader):
+        data
+        if i==3:break

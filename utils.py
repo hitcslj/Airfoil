@@ -1,5 +1,25 @@
 import os
 import matplotlib.pyplot as plt
+plt.switch_backend('agg')
+import numpy as np
+from scipy.spatial.distance import pdist, squareform
+
+
+
+
+def diversity_score(data, subset_size=10, sample_times=1000):
+    # Average log determinant
+    N = data.shape[0]
+    data = data.reshape(N, -1)
+    mean_logdet = 0
+    for i in range(sample_times):
+        ind = np.random.choice(N, size=subset_size, replace=False)
+        subset = data[ind]
+        D = squareform(pdist(subset, 'euclidean'))
+        S = np.exp(-0.5*np.square(D))
+        (sign, logdet) = np.linalg.slogdet(S)
+        mean_logdet += logdet
+    return mean_logdet/sample_times
 
 
 def vis_airfoil2(source,target,idx,dir_name='output_airfoil',sample_type='ddpm'):
@@ -12,7 +32,6 @@ def vis_airfoil2(source,target,idx,dir_name='output_airfoil',sample_type='ddpm')
 
     file_path = f'{dir_name}/{sample_type}_{idx}.png'
     plt.savefig(file_path, dpi=100, bbox_inches='tight', pad_inches=0.0)
-    # Clear the plot cache
     plt.clf()
 
 def vis_airfoil3(source,target_pred,target,idx,dir_name='output_airfoil',sample_type='ddpm'):
@@ -26,5 +45,4 @@ def vis_airfoil3(source,target_pred,target,idx,dir_name='output_airfoil',sample_
 
     file_path = f'{dir_name}/{sample_type}_{idx}.png'
     plt.savefig(file_path, dpi=100, bbox_inches='tight', pad_inches=0.0)
-    # Clear the plot cache
     plt.clf()

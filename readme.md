@@ -33,22 +33,41 @@ python dataload/parsec_direct.py
 
 在项目的根文件夹下:
 
+reproduce baseline: [softvae](https://arxiv.org/abs/2205.02458), [cvae-gan](https://www.sciencedirect.com/science/article/pii/S1000936121000662)
+
 ```bash
-# train cvae condition on keypoint&parsec
-python train_cvae_y.py
+# train soft-cvae condition on keypoint&parsec
+python train_soft_vae.py 
 
-# train editing parsec: source_param,target_param,source_keypoint -> target_keypoint 
-python train_editing_parsec.py
+# eval editing performance
+python eval_editing_softvae.py
 
-# join train editing parsec&cvae: source_param,target_param,source_keypoint -> target_point
-python train_editing_parsec_recons.py
+# train cvae-gan condition on keypoint&parsec
+python train_cvae_gan.py 
 
-# train editing keypoint: source_keypoint,target_keypoint,source_param -> target_param
-python train_editing_keypoint.py
+# eval editing performance
+python eval_editing_cvae_gan.py
 
-# train editing keypoint &cvae: source_keypoint,target_keypoint,source_param -> target_point
-python train_editing_keypoint_recons.py
+```
 
-# refinement test
-python infer_editing_parsec_refine.py
+
+```bash
+# train pkvae condition on keypoint&parsec
+python train_pk_vae.py
+
+# eval editing performance
+python eval_editing_pkvae.py
+
+# train editing keypoint condition on source_keypoint,target_keypoint,source_param, generate: target_param
+python train_ekvae.py
+
+# join train editing keypoint & pkvae condition source_keypoint,target_keypoint,source_param, generate: target_point
+python train_ek_pkvae.py
+
+# train editing param condition on source_param,target_param,source_keypoint, generate: target_keypoint
+python train_epvae.py
+
+# train editing param condition on source_param,target_param,source_keypoint, generate: target_point
+python train_ep_pkvae.py
+
 ```
