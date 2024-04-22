@@ -232,7 +232,7 @@ class Trainer:
         print(f"infer——epoch: {epoch}, accuracy: {accuracy}, avg_loss: {avg_loss}")
         print(f"infer——epoch: {epoch}, avg_parsec_loss: {avg_parsec_loss_sci}")
         # 保存评测结果
-        with open(f'{args.log_dir}/infer_editing_params_result.txt','a') as f:
+        with open(f'{args.log_dir}/infer_editing_keypoint_result.txt','a') as f:
             f.write(f"infer——epoch: {epoch}, accuracy: {accuracy}, keypoint_loss: {avg_loss:.2e}\n")
             f.write(f"infer——epoch: {epoch}, avg_parsec_loss: {' & '.join(avg_parsec_loss_sci)}\n")
 

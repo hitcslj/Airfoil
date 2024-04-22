@@ -43,11 +43,11 @@ def parse_option():
     parser.add_argument('--warmup-multiplier', type=int, default=100)
 
     # io
-    parser.add_argument('--checkpoint_path', default='logs/soft_vae/ckpt_epoch_500.pth',help='Model checkpoint path') # logs/pk_vae/ckpt_epoch_1000.pth
-    parser.add_argument('--log_dir', default=f'logs/soft_vae_editing',
+    parser.add_argument('--checkpoint_path', default='logs/cvae_gan/g_ckpt_epoch_500.pth',help='Model checkpoint path') # logs/pk_vae/ckpt_epoch_1000.pth
+    parser.add_argument('--log_dir', default=f'logs/cvae_gan_editing',
                         help='Dump dir to save model checkpoint & experiment log')
-    parser.add_argument('--val_freq', type=int, default=1000)  # epoch-wise
-    parser.add_argument('--save_freq', type=int, default=1000)  # epoch-wise
+    parser.add_argument('--val_freq', type=int, default=500)  # epoch-wise
+    parser.add_argument('--save_freq', type=int, default=500)  # epoch-wise
     
 
     # 评测指标相关
@@ -60,7 +60,7 @@ def parse_option():
     return args
 
 # BRIEF load checkpoint.
-def load_checkpoint(args, model, optimizer, scheduler):
+def load_checkpoint(args, model, optimizer):
     """Load from checkpoint."""
     print("=> loading checkpoint '{}'".format(args.checkpoint_path))
 
@@ -71,7 +71,6 @@ def load_checkpoint(args, model, optimizer, scheduler):
         args.start_epoch = 1
     model.load_state_dict(checkpoint['model'], strict=True)
     optimizer.load_state_dict(checkpoint['optimizer'])
-    scheduler.load_state_dict(checkpoint['scheduler'])
 
     print("=> loaded successfully '{}' (epoch {})".format(
         args.checkpoint_path, checkpoint['epoch']
@@ -315,7 +314,7 @@ class Trainer:
         # Check for a checkpoint
         if len(args.checkpoint_path)>0:
             assert os.path.isfile(args.checkpoint_path)
-            load_checkpoint(args, model, optimizer, scheduler)
+            load_checkpoint(args, model, optimizer)
         
         # set log dir
         os.makedirs(args.log_dir, exist_ok=True)
