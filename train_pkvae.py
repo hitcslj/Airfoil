@@ -43,8 +43,8 @@ def parse_option():
     parser.add_argument('--warmup-multiplier', type=int, default=100)
 
     # io
-    parser.add_argument('--checkpoint_path', default='logs/pk_vae/ckpt_epoch_2000.pth',help='Model checkpoint path') # logs/pk_vae/ckpt_epoch_1000.pth
-    parser.add_argument('--log_dir', default=f'logs/pk_vae',
+    parser.add_argument('--checkpoint_path', default='',help='Model checkpoint path') # logs/pk_vae/ckpt_epoch_1000.pth
+    parser.add_argument('--log_dir', default=f'logs/pk_vae_cst',
                         help='Dump dir to save model checkpoint & experiment log')
     parser.add_argument('--val_freq', type=int, default=1000)  # epoch-wise
     parser.add_argument('--save_freq', type=int, default=1000)  # epoch-wise
@@ -115,8 +115,8 @@ class Trainer:
 
     def get_datasets(self):
         """获得训练、验证 数据集"""
-        train_dataset = AirFoilMixParsec(split='train',dataset_names=['r05','r06', 'supercritical_airfoil', 'interpolated_uiuc']) #     'interpolated_uiuc'
-        val_dataset = AirFoilMixParsec(split='val',dataset_names=[ 'r05','r06', 'supercritical_airfoil', 'interpolated_uiuc']) #   
+        train_dataset = AirFoilMixParsec(split='train',dataset_names=['cst_gen']) # 'r05','r06', 'supercritical_airfoil', 'interpolated_uiuc'
+        val_dataset = AirFoilMixParsec(split='val',dataset_names=['cst_gen']) # 'r05','r06', 'supercritical_airfoil', 'interpolated_uiuc'
         return train_dataset, val_dataset
     
     def get_loaders(self,args):

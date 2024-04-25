@@ -31,7 +31,7 @@ class BN_Layer(nn.Module):
         return x
 
 class PK_VAE(nn.Module):
-    def __init__(self, feature_size=257, latent_size=20, condition_size=37):
+    def __init__(self, feature_size=257, latent_size=20, condition_size=11+26):
         super(PK_VAE, self).__init__()
         self.feature_size = feature_size
         self.condition_size = condition_size

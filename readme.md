@@ -72,3 +72,13 @@ python train_epvae.py
 python train_ep_pkvae.py
 
 ```
+
+ablation study
+
+```bash
+# decrease control keypoints 1/20
+python  train_pkvae.py --downsample_rate 20 --condition_size 24 --log_dir logs/pk_vae_2 --device cuda:1
+
+# decrease control keypoints 1/30
+python  train_pkvae.py --downsample_rate 30 --condition_size 20 --log_dir logs/pk_vae_3 --device cuda:2
+```

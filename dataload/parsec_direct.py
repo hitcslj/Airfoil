@@ -119,13 +119,14 @@ def process_file(file_path):
 
 
 if __name__ == '__main__':
-    dataset_name = 'interpolated_uiuc'
+    dataset_name = 'cst_gen'
     root_path = f'data/airfoil/{dataset_name}'
     file_paths = []
     for root, dirs, files in os.walk(root_path):
         for file in files:
             file_path = os.path.join(root, file)
             file_paths.append(file_path)
+    # process_file(file_paths[0])
     # 并行处理所有文件
     with Pool(processes=8) as pool:
         pool.map(process_file, file_paths)

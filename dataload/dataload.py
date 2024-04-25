@@ -98,8 +98,10 @@ class AirFoilMixParsec(Dataset):
     """Dataset for shape datasets(coco & 机翼)"""
     def __init__(self,split = 'train',
                  dataset_names = ['r05','r06', 'supercritical_airfoil','interpolated_uiuc'],
+                 downsample_rate = 10
                  ):
         self.split = split
+        self.downsample_rate = downsample_rate
         txt_list = []
         for dataset_name in dataset_names:
             with open(f'data/airfoil/{dataset_name}_{split}.txt') as f:
@@ -122,8 +124,10 @@ class AirFoilMixParsec(Dataset):
         key = txt_path.split('/')[-1].split('.')[0]
         params = self.params[key]
         data = get_data(txt_path)
-        input = data[::10] # 25个点
+        input = data[::self.downsample_rate] # 25个点
         params = torch.FloatTensor(params)
+
+        ## 希望 （inputs+params -> 多个data）
         return {'keypoint':input,'gt':data,'params':params}
     
     def __len__(self):
