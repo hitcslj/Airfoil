@@ -9,7 +9,7 @@ import torch.optim.lr_scheduler as lr_scheduler
 from models import PK_VAE
 from dataload import AirFoilMixParsec, Fit_airfoil
 import math 
-from utils import vis_airfoil2
+from utils import vis_airfoil2, cal_diversity_score
 import random
 import argparse
 import numpy as np
@@ -26,10 +26,13 @@ def parse_option():
     parser.add_argument('--latent_size', type=int, default=20,
                         help='Batch Size during training')
     parser.add_argument('--num_workers',type=int,default=4)
+    parser.add_argument('--downsample_rate', type=int, default=10) # 20, 30
+    parser.add_argument('--condition_size', type=int, default=11+26) # 11+13, 11+9
+
     # Training
     parser.add_argument('--beta', default=4, type=float, help='beta parameter for KL-term in original beta-VAE')
     parser.add_argument('--start_epoch', type=int, default=1)
-    parser.add_argument('--max_epoch', type=int, default=2000)
+    parser.add_argument('--max_epoch', type=int, default=1000)
     parser.add_argument('--weight_decay', type=float, default=0.0005)
     parser.add_argument("--lr", default=1e-3, type=float)
     parser.add_argument('--lrf', type=float, default=0.01)
@@ -46,8 +49,8 @@ def parse_option():
     parser.add_argument('--checkpoint_path', default='',help='Model checkpoint path') # logs/pk_vae/ckpt_epoch_1000.pth
     parser.add_argument('--log_dir', default=f'logs/pk_vae_cst',
                         help='Dump dir to save model checkpoint & experiment log')
-    parser.add_argument('--val_freq', type=int, default=1000)  # epoch-wise
-    parser.add_argument('--save_freq', type=int, default=1000)  # epoch-wise
+    parser.add_argument('--val_freq', type=int, default=100)  # epoch-wise
+    parser.add_argument('--save_freq', type=int, default=100)  # epoch-wise
     
 
     # 评测指标相关
@@ -113,29 +116,33 @@ def save_checkpoint(args, epoch, model, optimizer, scheduler, save_cur=False):
 
 class Trainer:
 
-    def get_datasets(self):
+    def get_datasets(self,args):
         """获得训练、验证 数据集"""
-        train_dataset = AirFoilMixParsec(split='train',dataset_names=['cst_gen']) # 'r05','r06', 'supercritical_airfoil', 'interpolated_uiuc'
-        val_dataset = AirFoilMixParsec(split='val',dataset_names=['cst_gen']) # 'r05','r06', 'supercritical_airfoil', 'interpolated_uiuc'
+        train_dataset = AirFoilMixParsec(split='train',
+                                         dataset_names=['cst_gen'],
+                                         downsample_rate=args.downsample_rate) #     'interpolated_uiuc'
+        val_dataset = AirFoilMixParsec(split='val',
+                                       dataset_names=[ 'cst_gen'],
+                                       downsample_rate=args.downsample_rate) #   
         return train_dataset, val_dataset
     
     def get_loaders(self,args):
         """获得训练、验证 dataloader"""
         print("get_loaders func begin, loading......")
-        train_dataset, val_dataset = self.get_datasets()
+        train_dataset, val_dataset = self.get_datasets(args=args)
         train_loader = DataLoader(train_dataset,
                                   shuffle=True,
                                   batch_size=args.batch_size,
                                   num_workers=args.num_workers)
         val_loader = DataLoader(val_dataset,
                                   shuffle=False,
-                                  batch_size=args.batch_size,
+                                  batch_size=1,
                                   num_workers=args.num_workers)
         return train_loader,val_loader
 
     @staticmethod
     def get_model(args):
-        model = PK_VAE()
+        model = PK_VAE(condition_size=args.condition_size)
         return model
 
     @staticmethod
@@ -254,6 +261,30 @@ class Trainer:
     
 
     @torch.no_grad()
+    def infer_diversity(self,args, model, dataloader,device, epoch):
+        """测试模型的diversity score"""
+        model.eval()
+
+        total_div_score = []
+
+        test_loader = tqdm(dataloader)
+        for _,data in enumerate(test_loader):
+            
+            keypoint = data['keypoint'][:,:,1:2] # [1,26,1]
+            physics = data['params'] # [1,11]
+            physics = physics.unsqueeze(-1) # [1,11,1]
+            condition = torch.cat([physics,keypoint],dim=1)
+            condition = condition.repeat(1000,1,1)
+            condition = condition.to(device)
+            recon_batch = model.sample(condition) # [b,20],[b,37,1] -> [b,257,1]
+            recon_batch = recon_batch.cpu().numpy()
+            total_div_score.append(cal_diversity_score(recon_batch))
+        pkvae_diver = np.nanmean(total_div_score,0)
+        print(f"infer——epoch: {epoch}, pkvae_diver: {pkvae_diver}")
+        with open(f'{args.log_dir}/eval_result.txt','a') as f:
+            f.write(f"infer——epoch: {epoch}, pkvae_diver: {pkvae_diver}\n")
+
+    @torch.no_grad()
     def infer(self,args, model, dataloader,device, epoch):
         """验证一个epoch"""
         model.eval()
@@ -308,7 +339,7 @@ class Trainer:
                     total_parsec_loss[i][0] += abs(source_parsec[i]-target_parsec[i]) # 绝对误差
                     total_parsec_loss[i][1] += abs(source_parsec[i]-target_parsec[i])/(abs(target_parsec[i])+1e-9) # 相对误差
                     total_parsec_loss[i][2] += abs(target_parsec[i]) # 真实值的绝对值
-                if idx < 5:
+                if idx %100 == 0:
                   vis_airfoil2(source,target,epoch+idx,dir_name=args.log_dir,sample_type='cvae')
         accuracy = correct_pred / total_pred
         avg_loss = total_loss / total_pred
@@ -318,11 +349,6 @@ class Trainer:
 
         print(f"infer——epoch: {epoch}, accuracy: {accuracy}, avg_loss: {avg_loss}")
         print(f"infer——epoch: {epoch}, avg_parsec_loss: {' & '.join(avg_parsec_loss_sci)}")
-        # 保存评测结果
-        with open(f'{args.log_dir}/infer_result.txt','a') as f:
-            f.write(f"infer——epoch: {epoch}, accuracy: {accuracy}, keypoint_loss: {avg_loss:.2e}\n")
-            f.write(f"infer——epoch: {epoch}, avg_parsec_loss: {' & '.join(avg_parsec_loss_sci)}\n")
-
 
     def main(self,args):
         """Run main training/evaluation pipeline."""
@@ -368,13 +394,14 @@ class Trainer:
                 #     device=device, 
                 #     epoch=epoch, 
                 #     )
-                self.infer(
+                self.infer_diversity(
                     args=args,
                     model=model,
                     dataloader=val_loader,
                     device=device, 
                     epoch=epoch, 
                     )
+ 
                  
            
           
@@ -396,3 +423,10 @@ if __name__ == '__main__':
 
     trainer = Trainer()
     trainer.main(opt)
+
+
+# python  train_pkvae.py --downsample_rate 10 --condition_size 37 --log_dir logs/pk_vae --device cuda:0
+    
+# python  train_pkvae.py --downsample_rate 20 --condition_size 24 --log_dir logs/pk_vae_2 --device cuda:1 --checkpoint_path='logs/pk_vae_2/ckpt_epoch_1000.pth' --max_epoch 1000
+    
+# python  train_pkvae.py --downsample_rate 30 --condition_size 20 --log_dir logs/pk_vae_3 --device cuda:2 --checkpoint_path='logs/pk_vae_3/ckpt_epoch_1000.pth' --max_epoch 1000

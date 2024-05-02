@@ -25,7 +25,7 @@ class Fit_airfoil():
 
         self.parsec_features = np.array([rle,xup,yup,yxxup,xlo,ylo,yxxlo,
                                          yteup,ytelo,alphate,betate]) 
-        
+
         # 超临界翼型的特征
         xaft, yaft, yxxaft = self.get_aftload()
         # print(xaft, yaft, yxxaft)

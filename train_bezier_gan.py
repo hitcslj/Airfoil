@@ -6,7 +6,7 @@ from torch.utils.data import DataLoader
 import torch.optim as optim 
 import torch.nn.functional as F
 import torch.optim.lr_scheduler as lr_scheduler
-from models import CVAE_GAN, Discriminator
+from models import Generator,CDiscriminator
 from dataload import AirFoilMixParsec, Fit_airfoil
 import math 
 from utils import vis_airfoil2
@@ -21,7 +21,7 @@ def parse_option():
     """Parse cmd arguments."""
     parser = argparse.ArgumentParser()
     # Data
-    parser.add_argument('--batch_size', type=int, default=512,
+    parser.add_argument('--batch_size', type=int, default=1024,
                         help='Batch Size during training')
     parser.add_argument('--latent_size', type=int, default=10,
                         help='Batch Size during training')
@@ -43,9 +43,9 @@ def parse_option():
     parser.add_argument('--warmup-multiplier', type=int, default=100)
 
     # io
-    parser.add_argument('--checkpoint_path_d', default='logs/cvae_gan/d_ckpt_epoch_500.pth',help='Model checkpoint path') # logs/cvae_gan/d_ckpt_epoch_500.pth
-    parser.add_argument('--checkpoint_path_g', default='logs/cvae_gan/g_ckpt_epoch_500.pth',help='Model checkpoint path') # logs/cvae_gan/g_ckpt_epoch_500.pth
-    parser.add_argument('--log_dir', default=f'logs/cvae_gan',
+    parser.add_argument('--checkpoint_path_d', default='',help='Model checkpoint path') # logs/cvae_gan/d_ckpt_epoch_500.pth
+    parser.add_argument('--checkpoint_path_g', default='',help='Model checkpoint path') # logs/cvae_gan/g_ckpt_epoch_500.pth
+    parser.add_argument('--log_dir', default=f'logs/cgan',
                         help='Dump dir to save model checkpoint & experiment log')
     parser.add_argument('--val_freq', type=int, default=100)  # epoch-wise
     parser.add_argument('--save_freq', type=int, default=500)  # epoch-wise
@@ -149,8 +149,8 @@ class Trainer:
     @staticmethod
     def get_model(args):
         # 创建对象
-        D = Discriminator()
-        G = CVAE_GAN()
+        D = CDiscriminator()
+        G = Generator()
         return D,G
 
     @staticmethod
@@ -172,7 +172,7 @@ class Trainer:
         """训练一个epoch"""
         D.train()  # set model to training mode
         G.train()
-        total_recons_loss = total_kl_loss = 0
+        total_g_loss = total_d_loss = 0
         total_pred = 0
         for _,data in enumerate(tqdm(dataloader)):
             keypoint = data['keypoint'][:,:,1:2] # [b,26,1]
@@ -184,59 +184,42 @@ class Trainer:
             gt = gt.to(device)
 
             ## (1) Update D network: maximize log(D(x)) + log(1 - D(G(z)))
-            for _ in range(5):
-              num = gt.shape[0]
-              d_gt = gt.reshape(num,  -1)   
-              real_airfoil = d_gt.to(device) # 将tensor变成Variable放入计算图中
-              real_label = torch.ones(num).to(device)  # 定义真实的airfoil label为1
-              fake_label = torch.zeros(num).to(device) # 定义假的airfoil 的label为0
+            num = gt.shape[0]
+            total_pred += 1
+            d_gt = gt.reshape(num,  -1)   
+            real_airfoil = d_gt.to(device) # 将tensor变成Variable放入计算图中
+            real_out = D(real_airfoil, condition)  # 将真实airfoil放入判别器中
 
-              # 计算真实airfoil的损失
-              real_out = D(real_airfoil)  # 将真实airfoil放入判别器中
-              real_scores = real_out  # 得到真实图片的判别值，输出的值越接近1越好
+            # 计算假的airfoil的损失
+            noise = torch.randn(num, args.latent_size).to(device)  # 生成随机噪声
+            recon_batch = G(noise,condition)  
+            fake_airfoil = recon_batch.reshape(num,-1) 
+            fake_out = D(fake_airfoil.detach(),condition)  # 判别器判断假的airfoil
+            d_loss = torch.mean(fake_out)-torch.mean(real_out)  # 得到airfoil的loss
+            total_d_loss += d_loss.item()
+            # 损失函数和优化
+            d_optimizer.zero_grad()  # 在反向传播之前，先将梯度归0
+            d_loss.backward()  # 将误差反向传播
+            d_optimizer.step()  # 更新参数
+            # weight Clipping WGAN
+            for layer in D.dis:
+                if (layer.__class__.__name__ == 'Linear'):
+                    layer.weight.requires_grad = False
+                    layer.weight.clamp_(-0.005, 0.005)
+                    layer.weight.requires_grad = True
 
-              # 计算假的airfoil的损失
-              recon_batch = G.sample(condition) # [b,257],[b,37] -> [b,257]
-              fake_airfoil = recon_batch.reshape(num,-1) 
-              fake_out = D(fake_airfoil.detach())  # 判别器判断假的airfoil
-              d_loss = torch.mean(fake_out)-torch.mean(real_out)  # 得到airfoil的loss
-              fake_scores = fake_out  # 得到假airfoil的判别值，对于判别器来说，假airfoil的损失越接近0越好
-
-              # 损失函数和优化
-              # d_loss = d_loss_real + d_loss_fake  # 损失包括判真损失和判假损失
-              d_optimizer.zero_grad()  # 在反向传播之前，先将梯度归0
-              d_loss.backward()  # 将误差反向传播
-              d_optimizer.step()  # 更新参数
-              # weight Clipping WGAN
-              for layer in D.dis:
-                  if (layer.__class__.__name__ == 'Linear'):
-                      layer.weight.requires_grad = False
-                      layer.weight.clamp_(-0.005, 0.005)
-                      layer.weight.requires_grad = True
-
-
-            # (2) Update G network which is the decoder of VAE
-            recon_batch, mu, logvar = G(gt,condition) # [b,257],[b,37] -> [b,257]
-            G.zero_grad()
-            recons_loss, KL_loss = loss_function(recon_batch, gt, mu, logvar)
-            loss = recons_loss + args.beta* KL_loss
-            total_recons_loss += recons_loss.item()
-            total_kl_loss += KL_loss.item()
-            total_pred += keypoint.shape[0]
-            loss.backward(retain_graph=True)
-            g_optimizer.step()
 
             # (3) Update G network: maximize log(D(G(z)))
-            G.zero_grad()
-            fake_airfoil = recon_batch.reshape(num,-1) 
-            output = D(fake_airfoil.detach()).squeeze(1)  
+            g_optimizer.zero_grad()
+            output = D(fake_airfoil,condition).squeeze(1)  
             g_loss = torch.mean(-output)  
+            total_g_loss += g_loss.item()
             g_loss.backward()  # 进行反向传播
             g_optimizer.step()  # .step()一般用在反向传播后面,用于更新生成网络的参数  
-        total_recons_loss = total_recons_loss / total_pred    
-        total_kl_loss = total_kl_loss / total_pred    
+        total_g_loss = total_g_loss / total_pred    
+        total_d_loss = total_d_loss / total_pred    
         # 打印loss
-        print(f'====> Epoch: {epoch} recons loss: {total_recons_loss} kl_loss: {total_kl_loss}')
+        print(f'====> Epoch: {epoch} generator loss: {total_g_loss} discriminator: {total_d_loss}')
   
 
     @torch.no_grad()
@@ -262,7 +245,9 @@ class Trainer:
             condition = torch.cat([physics,keypoint],dim=1)
             condition = condition.to(device)
             gt = gt.to(device)
-            recon_batch = model.sample(condition) # [b,20],[b,37,1] -> [b,257,1]
+            num = gt.shape[0]
+            noise = torch.randn(num, args.latent_size).to(device)  # 生成随机噪声
+            recon_batch = model(noise,condition)  
 
             total_pred += keypoint.shape[0]
 
@@ -342,6 +327,7 @@ class Trainer:
                                  epoch=epoch
                                  )
             # save model and validate
+            # args.val_freq = 1
             if epoch % args.val_freq == 0:
                 # save_checkpoint(args, epoch, D,G,d_optimizer,g_optimizer)
                 print("Validation begin.......")

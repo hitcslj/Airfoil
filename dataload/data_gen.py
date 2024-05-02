@@ -108,7 +108,7 @@ def process_file(file_path):
     # plt.show()
     # 使用示例
     # plt.figure()
-    n = 10  # 样本数量
+    n = 100  # 样本数量
     au,al,te = lhs(n, au , al , te)
     for i in range(n):
       yu = cst.A0.dot(au[i]) + cst.x_coords*te[i]

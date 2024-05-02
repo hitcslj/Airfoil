@@ -163,7 +163,7 @@ class Trainer:
             gt = gt.to(device)
             optimizer.zero_grad()
 
-            recon_batch, mu, logvar = model(gt,condition) # [b,257],[b,37] -> [b,257]
+            recon_batch, mu, logvar = model(gt,condition) # [b,257,1],[b,37,1] -> [b,257,1]
 
             recons_loss, KL_loss = loss_function(recon_batch, gt, mu, logvar)
             loss = recons_loss + args.beta* KL_loss

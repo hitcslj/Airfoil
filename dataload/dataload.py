@@ -124,7 +124,7 @@ class AirFoilMixParsec(Dataset):
         key = txt_path.split('/')[-1].split('.')[0]
         params = self.params[key]
         data = get_data(txt_path)
-        input = data[::self.downsample_rate] # 25个点
+        input = data[::self.downsample_rate] # 26个点
         params = torch.FloatTensor(params)
 
         ## 希望 （inputs+params -> 多个data）

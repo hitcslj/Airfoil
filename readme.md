@@ -18,6 +18,9 @@ pip install -r requirements.txt
 
 在项目的根文件夹下:
 ```bash
+# use CST method to generate airfoil
+python dataload/data_gen.py 
+
 # interpolate airfoil to specified number of points
 python dataload/interpolate.py 
 

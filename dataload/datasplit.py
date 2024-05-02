@@ -6,9 +6,9 @@ import random
 from tqdm import tqdm
 
 #3个数据子集的划分比例
-train_percent = 0.9
+train_percent = 0.8
 val_percent = 0.1
-test_percent = 0
+test_percent = 0.1
 
 rootpath = 'data/airfoil'
 dataset_names = ['cst_gen'] # 'interpolated_uiuc','r05','r06','supercritical_airfoil'
