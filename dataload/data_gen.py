@@ -119,7 +119,7 @@ def process_file(file_path):
     # plt.savefig('cst_gen.png')
 
 
-      new_y = np.concatenate([yu[::-1],yl[:-1]])
+      new_y = np.concatenate([yu[::-1],yl[1:]])
       new_data = data.copy()
       new_data[:,1] = new_y
       file = file_path.split('/')[-1]
