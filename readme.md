@@ -14,7 +14,7 @@ pip install -r requirements.txt
 
 ## Dataset
 
-请将数据集存放在 `data` 文件夹下, 默认数据集为 `data/airfoil/supercritical_airfoil/*.dat`
+请将数据集软链接到 `data` 文件夹下, 默认数据集为 `data/airfoil/cst_gen/*.dat`
 
 在项目的根文件夹下:
 ```bash
