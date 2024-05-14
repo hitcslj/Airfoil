@@ -119,7 +119,7 @@ def process_file(file_path):
 
 
 if __name__ == '__main__':
-    dataset_name = 'cst_gen'
+    dataset_name = 'supercritical_airfoil'
     root_path = f'data/airfoil/{dataset_name}'
     file_paths = []
     for root, dirs, files in os.walk(root_path):

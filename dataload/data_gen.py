@@ -58,7 +58,7 @@ class CSTLayer():
         return au,al,te
 
 
-def lhs(n, au , al , te, bounds=[-0.05 , 0.05]):
+def lhs(n, au , al , te, bounds=[-0.02 , 0.02]):
   nvars = len(au) # 变量个数
   result_au = np.zeros((n, nvars))
   result_al = np.zeros((n, nvars))
@@ -66,11 +66,14 @@ def lhs(n, au , al , te, bounds=[-0.05 , 0.05]):
   # 对每个变量进行分区
   for i in range(nvars):
     
-    partitions = np.linspace(au[i] + bounds[0], au[i] + bounds[1], n + 1)
+    # partitions = np.linspace(au[i] + bounds[0], au[i] + bounds[1], n + 1)
+    partitions = np.linspace(au[i] + bounds[0]*(au[i]-al[i]), au[i] + bounds[1]*(au[i]-al[i]), n + 1)
     result_au[:, i] = np.random.permutation(partitions[:-1]) + np.random.uniform(0,abs(bounds[0]-bounds[1])/n,(n,))
   for i in range(nvars):
   
-    partitions = np.linspace(al[i] + bounds[0], al[i] + bounds[1], n + 1)
+    # partitions = np.linspace(al[i] + bounds[0], al[i] + bounds[1], n + 1)
+    partitions = np.linspace(al[i] + bounds[0]*(au[i]-al[i]), al[i] + bounds[1]*(au[i]-al[i]), n + 1)
+
     result_al[:, i] = np.random.permutation(partitions[:-1]) + np.random.uniform(0,abs(bounds[0]-bounds[1])/n,(n,))
   
   np.random.shuffle(result_au)
@@ -108,7 +111,7 @@ def process_file(file_path):
     # plt.show()
     # 使用示例
     # plt.figure()
-    n = 100  # 样本数量
+    n = 10  # 样本数量
     au,al,te = lhs(n, au , al , te)
     for i in range(n):
       yu = cst.A0.dot(au[i]) + cst.x_coords*te[i]
@@ -130,7 +133,7 @@ def process_file(file_path):
 if __name__ == '__main__':
     dataset_name = 'interpolated_uiuc'
     root_path = f'data/airfoil/{dataset_name}'
-    new_root = f'data/airfoil/cst_gen'
+    new_root = f'data/airfoil/cst_gen_b'
     os.makedirs(new_root,exist_ok=True)
     file_paths = []
     for root, dirs, files in os.walk(root_path):

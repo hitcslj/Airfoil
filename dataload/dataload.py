@@ -97,7 +97,7 @@ class EditingDataset(Dataset):
 class AirFoilMixParsec(Dataset):
     """Dataset for shape datasets(coco & 机翼)"""
     def __init__(self,split = 'train',
-                 dataset_names = ['r05','r06', 'supercritical_airfoil','interpolated_uiuc'],
+                 dataset_names = ['supercritical_airfoil','cst_gen'],
                  downsample_rate = 10
                  ):
         self.split = split
@@ -129,7 +129,7 @@ class AirFoilMixParsec(Dataset):
 
         ## 希望 （inputs+params -> 多个data）
         return {'keypoint':input,'gt':data,'params':params}
-    
+
     def __len__(self):
         return len(self.txt_list)
 
@@ -137,7 +137,7 @@ class AirFoilMixParsec(Dataset):
 class EditingMixDataset(Dataset):
     """Dataset for shape datasets(coco & 机翼)"""
     def __init__(self,split = 'train',
-                 dataset_names = ['r05','r06', 'supercritical_airfoil','interpolated_uiuc'],
+                 dataset_names = ['supercritical_airfoil','cst_gen'],
                  ):
         self.split = split
         txt_list = []

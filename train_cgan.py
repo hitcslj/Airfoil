@@ -13,6 +13,7 @@ from utils import vis_airfoil2
 import random
 import argparse
 import numpy as np
+from utils import calculate_smoothness
 
 
 os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
@@ -29,9 +30,9 @@ def parse_option():
     # Training
     parser.add_argument('--beta', default=1, type=float, help='beta parameter for KL-term in original beta-VAE')
     parser.add_argument('--start_epoch', type=int, default=1)
-    parser.add_argument('--max_epoch', type=int, default=501)
+    parser.add_argument('--max_epoch', type=int, default=1001)
     parser.add_argument('--weight_decay', type=float, default=0.0005)
-    parser.add_argument("--lr", default=1e-3, type=float)
+    parser.add_argument("--lr", default=1e-4, type=float)
     parser.add_argument('--lrf', type=float, default=0.01)
     parser.add_argument('--lr-scheduler', type=str, default='step',
                           choices=["step", "cosine"])
@@ -43,12 +44,12 @@ def parse_option():
     parser.add_argument('--warmup-multiplier', type=int, default=100)
 
     # io
-    parser.add_argument('--checkpoint_path_d', default='',help='Model checkpoint path') # logs/cvae_gan/d_ckpt_epoch_500.pth
+    parser.add_argument('--checkpoint_path_d', default='',help='Model checkpoint path') # logs/cvae_gan/d_ckpt_epoch_1000.pth
     parser.add_argument('--checkpoint_path_g', default='',help='Model checkpoint path') # logs/cvae_gan/g_ckpt_epoch_500.pth
     parser.add_argument('--log_dir', default=f'logs/cgan',
                         help='Dump dir to save model checkpoint & experiment log')
-    parser.add_argument('--val_freq', type=int, default=100)  # epoch-wise
-    parser.add_argument('--save_freq', type=int, default=500)  # epoch-wise
+    parser.add_argument('--val_freq', type=int, default=1000)  # epoch-wise
+    parser.add_argument('--save_freq', type=int, default=1000)  # epoch-wise
     
 
     # 评测指标相关
@@ -128,23 +129,23 @@ class Trainer:
 
     def get_datasets(self):
         """获得训练、验证 数据集"""
-        train_dataset = AirFoilMixParsec(split='train',dataset_names=['r05','r06', 'supercritical_airfoil', 'interpolated_uiuc'])  
-        val_dataset = AirFoilMixParsec(split='val',dataset_names=[ 'r05','r06', 'supercritical_airfoil', 'interpolated_uiuc']) 
-        return train_dataset, val_dataset
+        train_dataset = AirFoilMixParsec(split='train',dataset_names=['cst_gen','supercritical_airfoil','interpolated_uiuc'])  
+        test_dataset = AirFoilMixParsec(split='test',dataset_names=['cst_gen','supercritical_airfoil','interpolated_uiuc'])
+        return train_dataset, test_dataset
     
     def get_loaders(self,args):
         """获得训练、验证 dataloader"""
         print("get_loaders func begin, loading......")
-        train_dataset, val_dataset = self.get_datasets()
+        train_dataset, test_dataset = self.get_datasets()
         train_loader = DataLoader(train_dataset,
                                   shuffle=True,
                                   batch_size=args.batch_size,
                                   num_workers=args.num_workers)
-        val_loader = DataLoader(val_dataset,
+        test_loader = DataLoader(test_dataset,
                                   shuffle=False,
                                   batch_size=args.batch_size,
                                   num_workers=args.num_workers)
-        return train_loader,val_loader
+        return train_loader,test_loader
 
     @staticmethod
     def get_model(args):
@@ -155,20 +156,20 @@ class Trainer:
 
     @staticmethod
     def get_optimizer(args,D,G):
-        params = [p for p in D.parameters() if p.requires_grad]
-        d_optimizer = optim.AdamW(params,
-                              lr = args.lr,
+        d_params = [p for p in D.parameters()]
+        d_optimizer = optim.Adam(d_params,
+                              lr = 4*args.lr,
                               weight_decay=args.weight_decay)
         
-        params = [p for p in G.parameters() if p.requires_grad]
-        g_optimizer = optim.AdamW(params,
+        g_params = [p for p in G.parameters()]
+        g_optimizer = optim.Adam(g_params,
                               lr = args.lr,
                               weight_decay=args.weight_decay)
         return d_optimizer, g_optimizer
     
 
 
-    def train_one_epoch(self,args, D,G,d_optimizer,g_optimizer,dataloader,device,epoch):
+    def train_one_epoch(self,args, D,G,d_optimizer,g_optimizer,dataloader,device,epoch,adversarial_criterion):
         """训练一个epoch"""
         D.train()  # set model to training mode
         G.train()
@@ -182,40 +183,39 @@ class Trainer:
             condition = torch.cat([physics,keypoint],dim=1)
             condition = condition.to(device)
             gt = gt.to(device)
+            batch_size = gt.shape[0]
 
-            ## (1) Update D network: maximize log(D(x)) + log(1 - D(G(z)))
-            num = gt.shape[0]
+            real_label = torch.full((batch_size, 1), 1, dtype=gt.dtype).to(device)
+            fake_label = torch.full((batch_size, 1), 0, dtype=gt.dtype).to(device)
+
             total_pred += 1
-            d_gt = gt.reshape(num,  -1)   
-            real_airfoil = d_gt.to(device) # 将tensor变成Variable放入计算图中
-            real_out = D(real_airfoil, condition)  # 将真实airfoil放入判别器中
+            ## (1) Update D network: maximize log(D(x)) + log(1 - D(G(z)))
+            d_optimizer.zero_grad()
 
-            # 计算假的airfoil的损失
-            noise = torch.randn(num, args.latent_size).to(device)  # 生成随机噪声
-            recon_batch = G(noise,condition)  
-            fake_airfoil = recon_batch.reshape(num,-1) 
-            fake_out = D(fake_airfoil.detach(),condition)  # 判别器判断假的airfoil
-            d_loss = torch.mean(fake_out)-torch.mean(real_out)  # 得到airfoil的loss
+            real_airfoil = gt.reshape(batch_size,-1).to(device)  
+            real_out = D(real_airfoil, condition)  
+            d_loss_real = adversarial_criterion(real_out, real_label)
+            d_loss_real.backward()
+
+            noise = torch.randn(batch_size, args.latent_size).to(device)  # 生成随机噪声
+            fake_airfoil = G(noise,condition).reshape(batch_size,-1) 
+            fake_out = D(fake_airfoil.detach(),condition)  
+            d_loss_fake = adversarial_criterion(fake_out, fake_label)
+            d_loss_fake.backward()
+
+            d_loss = d_loss_real + d_loss_fake
             total_d_loss += d_loss.item()
-            # 损失函数和优化
-            d_optimizer.zero_grad()  # 在反向传播之前，先将梯度归0
-            d_loss.backward()  # 将误差反向传播
             d_optimizer.step()  # 更新参数
-            # weight Clipping WGAN
-            for layer in D.dis:
-                if (layer.__class__.__name__ == 'Linear'):
-                    layer.weight.requires_grad = False
-                    layer.weight.clamp_(-0.005, 0.005)
-                    layer.weight.requires_grad = True
 
-
-            # (3) Update G network: maximize log(D(G(z)))
+            # (2) Update G network: maximize log(D(G(z)))
             g_optimizer.zero_grad()
-            output = D(fake_airfoil,condition).squeeze(1)  
-            g_loss = torch.mean(-output)  
+            fake_out = D(fake_airfoil,condition)  
+            g_loss = adversarial_criterion(fake_out, real_label)
             total_g_loss += g_loss.item()
-            g_loss.backward()  # 进行反向传播
-            g_optimizer.step()  # .step()一般用在反向传播后面,用于更新生成网络的参数  
+            g_loss.backward()
+            g_optimizer.step()  
+
+
         total_g_loss = total_g_loss / total_pred    
         total_d_loss = total_d_loss / total_pred    
         # 打印loss
@@ -233,7 +233,7 @@ class Trainer:
         correct_pred = 0  # 预测正确的样本数量
         total_pred = 0  # 总共的样本数量
         total_loss = 0.0
-
+        total_smoothness = []
         test_loader = tqdm(dataloader)
         for _,data in enumerate(test_loader):
             
@@ -272,6 +272,8 @@ class Trainer:
 
                 # 需要check 一下为啥x直接就是numpy格式
                 source = np.stack([x,source],axis=1)
+                total_smoothness.append(calculate_smoothness(source))
+
                 target = np.stack([x,target],axis=1)
                 source_parsec = Fit_airfoil(source).parsec_features
                 target_parsec = Fit_airfoil(target).parsec_features
@@ -279,20 +281,23 @@ class Trainer:
                     total_parsec_loss[i][0] += abs(source_parsec[i]-target_parsec[i]) # 绝对误差
                     total_parsec_loss[i][1] += abs(source_parsec[i]-target_parsec[i])/(abs(target_parsec[i])+1e-9) # 相对误差
                     total_parsec_loss[i][2] += abs(target_parsec[i]) # 真实值的绝对值
-                if idx < 5:
-                  vis_airfoil2(source,target,epoch+idx,dir_name=args.log_dir,sample_type='cvae')
+                if idx < 10:
+                  vis_airfoil2(source,target,epoch+idx,dir_name=args.log_dir,sample_type='cgan')
         accuracy = correct_pred / total_pred
         avg_loss = total_loss / total_pred
         avg_parsec_loss = [(x/total_pred,y/total_pred,z/total_pred) for x,y,z in total_parsec_loss]
         # 将avg_parsec_loss中的每个元素转换为科学计数法，保留两位有效数字
         avg_parsec_loss_sci = [f"{x:.2e}" for x, y, z in avg_parsec_loss]
+        smoothness = np.nanmean(total_smoothness,0)
 
         print(f"infer——epoch: {epoch}, accuracy: {accuracy}, avg_loss: {avg_loss}")
         print(f"infer——epoch: {epoch}, avg_parsec_loss: {' & '.join(avg_parsec_loss_sci)}")
+        print(f"infer——epoch: {epoch}, smoothness: {smoothness}")
         # 保存评测结果
         with open(f'{args.log_dir}/infer_result.txt','a') as f:
             f.write(f"infer——epoch: {epoch}, accuracy: {accuracy}, keypoint_loss: {avg_loss:.2e}\n")
             f.write(f"infer——epoch: {epoch}, avg_parsec_loss: {' & '.join(avg_parsec_loss_sci)}\n")
+            f.write(f"infer——epoch: {epoch}, smoothness: {smoothness}")
 
 
     def main(self,args):
@@ -300,19 +305,22 @@ class Trainer:
 
         # 单卡训练
         D,G = self.get_model(args)
-        device = torch.device('cuda:5' if torch.cuda.is_available() else 'cpu')
+        device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
         D.to(device)
         G.to(device)
 
         train_loader, val_loader = self.get_loaders(args) 
         d_optimizer, g_optimizer = self.get_optimizer(args,D,G)
-
+        adversarial_criterion = nn.MSELoss().to(device)
    
         # Check for a checkpoint
         if len(args.checkpoint_path_g)>0 and len(args.checkpoint_path_d)>0:
             assert os.path.isfile(args.checkpoint_path_g)
             load_checkpoint(args, D, G, d_optimizer,g_optimizer)
-        
+
+        lf = lambda x: ((1 + math.cos(x * math.pi / args.max_epoch)) / 2) * (1 - args.lrf) + args.lrf  # cosine
+        d_scheduler = lr_scheduler.LambdaLR(d_optimizer, lr_lambda=lf)
+        g_scheduler = lr_scheduler.LambdaLR(g_optimizer, lr_lambda=lf)
         # set log dir
         os.makedirs(args.log_dir, exist_ok=True)
         for epoch in range(args.start_epoch,args.max_epoch+1):
@@ -324,12 +332,15 @@ class Trainer:
                                  g_optimizer=g_optimizer,
                                  dataloader=train_loader,
                                  device=device,
-                                 epoch=epoch
+                                 epoch=epoch,
+                                 adversarial_criterion=adversarial_criterion,
                                  )
+            d_scheduler.step()
+            g_scheduler.step()
             # save model and validate
             # args.val_freq = 1
             if epoch % args.val_freq == 0:
-                # save_checkpoint(args, epoch, D,G,d_optimizer,g_optimizer)
+                save_checkpoint(args, epoch, D,G,d_optimizer,g_optimizer)
                 print("Validation begin.......")
                 self.infer(
                     args=args,
@@ -359,3 +370,8 @@ if __name__ == '__main__':
 
     trainer = Trainer()
     trainer.main(opt)
+
+'''
+python train_cgan.py --log_dir logs/cgan_super
+python train_cgan.py --log_dir logs/cgan_afbench --max_epoch 201 --val_freq 100 --save_freq 100
+'''

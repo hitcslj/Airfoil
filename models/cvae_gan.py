@@ -13,7 +13,7 @@ class Discriminator(nn.Module):
             nn.Linear(256, 256),  # 进行一个线性映射
             nn.LeakyReLU(0.2),
             nn.Linear(256, 1),
-            nn.Sigmoid()  # 也是一个激活函数，二分类问题中，
+            # nn.Sigmoid()  # 也是一个激活函数，二分类问题中，
             # sigmoid可以班实数映射到【0,1】，作为概率值，
             # 多分类用softmax函数
         )

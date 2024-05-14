@@ -13,6 +13,7 @@ from utils import vis_airfoil2
 import random
 import argparse
 import numpy as np
+from utils import cal_diversity_score,calculate_smoothness
 
 
 os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
@@ -21,7 +22,7 @@ def parse_option():
     """Parse cmd arguments."""
     parser = argparse.ArgumentParser()
     # Data
-    parser.add_argument('--batch_size', type=int, default=512,
+    parser.add_argument('--batch_size', type=int, default=1024,
                         help='Batch Size during training')
     parser.add_argument('--latent_size', type=int, default=10,
                         help='Batch Size during training')
@@ -29,7 +30,7 @@ def parse_option():
     # Training
     parser.add_argument('--beta', default=1, type=float, help='beta parameter for KL-term in original beta-VAE')
     parser.add_argument('--start_epoch', type=int, default=1)
-    parser.add_argument('--max_epoch', type=int, default=501)
+    parser.add_argument('--max_epoch', type=int, default=1001)
     parser.add_argument('--weight_decay', type=float, default=0.0005)
     parser.add_argument("--lr", default=1e-3, type=float)
     parser.add_argument('--lrf', type=float, default=0.01)
@@ -43,11 +44,11 @@ def parse_option():
     parser.add_argument('--warmup-multiplier', type=int, default=100)
 
     # io
-    parser.add_argument('--checkpoint_path', default='logs/soft_vae/ckpt_epoch_500.pth',help='Model checkpoint path') # logs/pk_vae/ckpt_epoch_1000.pth
+    parser.add_argument('--checkpoint_path', default='',help='Model checkpoint path') # logs/soft_vae/ckpt_epoch_1000.pth
     parser.add_argument('--log_dir', default=f'logs/soft_vae',
                         help='Dump dir to save model checkpoint & experiment log')
-    parser.add_argument('--val_freq', type=int, default=100)  # epoch-wise
-    parser.add_argument('--save_freq', type=int, default=500)  # epoch-wise
+    parser.add_argument('--val_freq', type=int, default=1000)  # epoch-wise
+    parser.add_argument('--save_freq', type=int, default=1000)  # epoch-wise
     
 
     # 评测指标相关
@@ -115,23 +116,23 @@ class Trainer:
 
     def get_datasets(self):
         """获得训练、验证 数据集"""
-        train_dataset = AirFoilMixParsec(split='train',dataset_names=['r05','r06', 'supercritical_airfoil', 'interpolated_uiuc'])  
-        val_dataset = AirFoilMixParsec(split='val',dataset_names=[ 'r05','r06', 'supercritical_airfoil', 'interpolated_uiuc']) 
-        return train_dataset, val_dataset
+        train_dataset = AirFoilMixParsec(split='train',dataset_names=['cst_gen','supercritical_airfoil','interpolated_uiuc'])  
+        test_dataset = AirFoilMixParsec(split='test',dataset_names=['cst_gen','supercritical_airfoil','interpolated_uiuc']) 
+        return train_dataset, test_dataset
     
     def get_loaders(self,args):
         """获得训练、验证 dataloader"""
         print("get_loaders func begin, loading......")
-        train_dataset, val_dataset = self.get_datasets()
+        train_dataset, test_dataset = self.get_datasets()
         train_loader = DataLoader(train_dataset,
                                   shuffle=True,
                                   batch_size=args.batch_size,
                                   num_workers=args.num_workers)
-        val_loader = DataLoader(val_dataset,
-                                  shuffle=False,
-                                  batch_size=args.batch_size,
-                                  num_workers=args.num_workers)
-        return train_loader,val_loader
+        test_loader = DataLoader(test_dataset,
+                                shuffle=False,
+                                batch_size=args.batch_size,
+                                num_workers=args.num_workers)
+        return train_loader,test_loader
 
     @staticmethod
     def get_model(args):
@@ -179,92 +180,14 @@ class Trainer:
         # 打印loss
         print(f'====> Epoch: {epoch} recons loss: {total_recons_loss} kl_loss: {total_kl_loss}')
 
-
-    @torch.no_grad()
-    def evaluate_one_epoch(self,args, model, dataloader,device, epoch):
-        """验证一个epoch"""
-        model.eval()
-
-        total_parsec_loss = [[0]*3 for _ in range(11)]
-        
-        correct_pred = 0  # 预测正确的样本数量
-        total_pred = 0  # 总共的样本数量
-        total_recons_loss = total_kl_loss = 0
-
-        test_loader = tqdm(dataloader)
-        for _,data in enumerate(test_loader):
-            
-            keypoint = data['keypoint'][:,:,1:2] # [b,26,1]
-            x = data['gt'][0,:,0] # [257]
-            gt = data['gt'][:,:,1:2] # [b,257,1]
-            physics = data['params'] # [b,11]
-            physics = physics.unsqueeze(-1) # [b,11,1]
-            condition = torch.cat([physics,keypoint],dim=1)
-            condition = condition.to(device)
-            gt = gt.to(device)
-
-            recon_batch, mu, logvar = model(gt,condition) # [b,257],[b,37] -> [b,257]
-
-
-            total_pred += keypoint.shape[0]
-            recons_loss, KL_loss = loss_function(recon_batch, gt, mu, logvar)
-
-            total_recons_loss += recons_loss.item()
-            total_kl_loss += KL_loss.item()
-            
-            # 判断样本是否预测正确
-            distances = torch.norm(gt - recon_batch,dim=-1) #(B,257)
-
-            # 点的直线距离小于t，说明预测值和真实值比较接近，认为该预测值预测正确
-            t = args.distance_threshold
-            # 257个点中，预测正确的点的比例超过ratio，认为该形状预测正确
-            ratio = args.threshold_ratio
-            count = (distances < t).sum(1) #(B) 一个样本中预测坐标和真实坐标距离小于t的点的个数
-            correct_count = (count >= ratio*257).sum().item() # batch_size数量的样本中，正确预测样本的个数
-            correct_pred += correct_count
-
-            # 统计一下物理量之间的误差
-            for idx in range(recon_batch.shape[0]):
-                # 给他们拼接同一个x坐标
-                source = recon_batch[idx,:,0].detach().cpu().numpy() # [257]
-                target = gt[idx,:,0].detach().cpu().numpy() # [257]
-                source = np.stack([x,source],axis=1)
-                target = np.stack([x,target],axis=1)
-                source_parsec = Fit_airfoil(source).parsec_features
-                target_parsec = Fit_airfoil(target).parsec_features
-                for i in range(11):
-                    total_parsec_loss[i][0] += abs(source_parsec[i]-target_parsec[i]) # 绝对误差
-                    total_parsec_loss[i][1] += abs(source_parsec[i]-target_parsec[i])/(abs(target_parsec[i])+1e-7) # 相对误差
-                    total_parsec_loss[i][2] += abs(target_parsec[i]) # 真实值的绝对值
-                # if idx < 5:
-                #   vis_airfoil2(source,target,epoch+idx,dir_name=args.log_dir,sample_type='cvae')
-
-        accuracy = correct_pred / total_pred
-        total_recons_loss = total_recons_loss / total_pred
-        total_kl_loss = total_kl_loss / total_pred
-        avg_parsec_loss = [(x/total_pred,y/total_pred,z/total_pred) for x,y,z in total_parsec_loss]
-        
-        print(f"eval——epoch: {epoch}, accuracy: {accuracy},  recons_loss: {total_recons_loss}, kl_loss: {total_kl_loss},")
-        print(f"eval——epoch: {epoch}, avg_parsec_loss: {avg_parsec_loss}")
-        # 保存评测结果
-        with open(f'{args.log_dir}/eval_result.txt','a') as f:
-            f.write(f"eval——epoch: {epoch}, accuracy: {accuracy},  recons_loss: {total_recons_loss}, kl_loss: {total_kl_loss}\n")
-            f.write(f"eval——epoch: {epoch}, avg_parsec_loss: {avg_parsec_loss}\n")
-    
-    
-
     @torch.no_grad()
     def infer(self,args, model, dataloader,device, epoch):
-        """验证一个epoch"""
+        """测试模型的metrics: label error, smoothness"""
         model.eval()
 
         total_parsec_loss = [[0]*3 for _ in range(11)]
-
-        
-        correct_pred = 0  # 预测正确的样本数量
+        total_smooth = []
         total_pred = 0  # 总共的样本数量
-        total_loss = 0.0
-
         test_loader = tqdm(dataloader)
         for _,data in enumerate(test_loader):
             
@@ -277,30 +200,18 @@ class Trainer:
             condition = condition.to(device)
             gt = gt.to(device)
             recon_batch = model.sample(condition) # [b,20],[b,37,1] -> [b,257,1]
-
-            total_pred += keypoint.shape[0]
-
-            loss = nn.MSELoss()(recon_batch[:,::10], gt[:,::10])
-            total_loss += loss.item()
-            # 判断样本是否预测正确
-            distances = torch.norm(gt - recon_batch,dim=-1) #(B,257)
-
-            # 点的直线距离小于t，说明预测值和真实值比较接近，认为该预测值预测正确
-            t = args.distance_threshold
-            # 257个点中，预测正确的点的比例超过ratio，认为该形状预测正确
-            ratio = args.threshold_ratio
-            count = (distances < t).sum(dim=1) #(B) 一个样本中预测坐标和真实坐标距离小于t的点的个数
-            correct_count = (count >= ratio*257).sum().item() # batch_size数量的样本中，正确预测样本的个数
-            correct_pred += correct_count
+            total_pred += recon_batch.shape[0]
 
             # 统计一下物理量之间的误差
-            for idx in range(recon_batch.shape[0]):
+            for idx in range(recon_batch.shape[0]): # 测第一个即可
                 # 给他们拼接同一个x坐标
                 source = recon_batch[idx][:,0].detach().cpu().numpy() # [257]
                 target = gt[idx][:,0].detach().cpu().numpy() # [257]
 
                 # 需要check 一下为啥x直接就是numpy格式
                 source = np.stack([x,source],axis=1)
+                total_smooth.append(calculate_smoothness(source))
+
                 target = np.stack([x,target],axis=1)
                 source_parsec = Fit_airfoil(source).parsec_features
                 target_parsec = Fit_airfoil(target).parsec_features
@@ -308,31 +219,31 @@ class Trainer:
                     total_parsec_loss[i][0] += abs(source_parsec[i]-target_parsec[i]) # 绝对误差
                     total_parsec_loss[i][1] += abs(source_parsec[i]-target_parsec[i])/(abs(target_parsec[i])+1e-9) # 相对误差
                     total_parsec_loss[i][2] += abs(target_parsec[i]) # 真实值的绝对值
-                if idx < 5:
-                  vis_airfoil2(source,target,epoch+idx,dir_name=args.log_dir,sample_type='cvae')
-        accuracy = correct_pred / total_pred
-        avg_loss = total_loss / total_pred
+                # if idx % 100 == 0:
+                #   vis_airfoil2(source,target,epoch+idx,dir_name=args.log_dir,sample_type='cvae')
+            
         avg_parsec_loss = [(x/total_pred,y/total_pred,z/total_pred) for x,y,z in total_parsec_loss]
-        # 将avg_parsec_loss中的每个元素转换为科学计数法，保留两位有效数字
         avg_parsec_loss_sci = [f"{x:.2e}" for x, y, z in avg_parsec_loss]
 
-        print(f"infer——epoch: {epoch}, accuracy: {accuracy}, avg_loss: {avg_loss}")
+        smoothness = np.nanmean(total_smooth,0)
+
+        
         print(f"infer——epoch: {epoch}, avg_parsec_loss: {' & '.join(avg_parsec_loss_sci)}")
+        print(f"infer——epoch: {epoch}, smoothness: {smoothness}")
         # 保存评测结果
         with open(f'{args.log_dir}/infer_result.txt','a') as f:
-            f.write(f"infer——epoch: {epoch}, accuracy: {accuracy}, keypoint_loss: {avg_loss:.2e}\n")
             f.write(f"infer——epoch: {epoch}, avg_parsec_loss: {' & '.join(avg_parsec_loss_sci)}\n")
-
+            f.write(f"infer——epoch: {epoch}, smoothness: {smoothness}")
 
     def main(self,args):
         """Run main training/evaluation pipeline."""
 
         # 单卡训练
         model = self.get_model(args)
-        device = torch.device('cuda:5' if torch.cuda.is_available() else 'cpu')
+        device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
         model.to(device)
 
-        train_loader, val_loader = self.get_loaders(args) 
+        train_loader, test_loader = self.get_loaders(args) 
         optimizer = self.get_optimizer(args,model)
         # Scheduler https://arxiv.org/pdf/1812.01187.pdf
         lf = lambda x: ((1 + math.cos(x * math.pi / args.max_epoch)) / 2) * (1 - args.lrf) + args.lrf  # cosine
@@ -356,28 +267,20 @@ class Trainer:
                                  epoch=epoch
                                  )
             scheduler.step()
+
             # save model and validate
             if epoch % args.val_freq == 0:
                 save_checkpoint(args, epoch, model, optimizer, scheduler)
-                # print("Validation begin.......")
-                # self.evaluate_one_epoch(
-                #     args=args,
-                #     model=model,
-                #     dataloader=val_loader,
-                #     device=device, 
-                #     epoch=epoch, 
-                #     )
+                # print("test begin.......")
                 self.infer(
                     args=args,
                     model=model,
-                    dataloader=val_loader,
+                    dataloader=test_loader,
                     device=device, 
                     epoch=epoch, 
                     )
                  
-           
-          
-                
+                    
 
 if __name__ == '__main__':
     opt = parse_option()
@@ -395,3 +298,11 @@ if __name__ == '__main__':
 
     trainer = Trainer()
     trainer.main(opt)
+
+
+
+
+'''
+python train_softvae.py --log_dir logs/soft_vae_afbench  --max_epoch 201 --val_freq 100 --save_freq 100
+'''
+       

@@ -44,7 +44,6 @@ def vis_airfoil3(source,target_pred,target,idx,dir_name='output_airfoil',sample_
     plt.clf()
 
 
-
 def calculate_smoothness(airfoil):
     smoothness = 0.0
     num_points = airfoil.shape[0]
@@ -68,6 +67,29 @@ def calculate_smoothness(airfoil):
 
     return smoothness
 
+def calculate_smoothness_batch(airfoil_batch):
+    num_points = airfoil_batch.shape[1]
+    smoothness = 0
+
+    for i in range(num_points):
+        p_idx = (i - 1) % num_points
+        q_idx = (i + 1) % num_points
+
+        p = airfoil_batch[:, p_idx, :]
+        q = airfoil_batch[:, q_idx, :]
+        current_point = airfoil_batch[:, i, :]
+
+        pq_diff = q - p
+        pq_norm = np.sqrt(pq_diff[:, 0]**2 + pq_diff[:, 1]**2)
+        pq_unit = pq_diff / np.expand_dims(pq_norm, axis=1)
+
+        distance = np.abs(np.cross(pq_unit, current_point - p))
+        smoothness += distance
+
+    average_smoothness = smoothness.mean() / num_points
+
+    return average_smoothness
+
 
 def cal_diversity_score(data, subset_size=10, sample_times=1000):
     # Average log determinant
@@ -87,20 +109,26 @@ def cal_diversity_score(data, subset_size=10, sample_times=1000):
 
 if __name__ == '__main__':
   # smoothness_value 计算
-  # airfoil = get_data('data/airfoil/interpolated_uiuc/2032c.dat')
-
-  # smoothness_value = calculate_smoothness(airfoil)
-  # print("Smoothness:", smoothness_value)
-   
-  # 示例 diversity score计算, 只选取前缘半径作为一个点进行计算
-  # 先计算一下数据集的diversity 
-  file_paths = getFilePath('data/airfoil/supercritical_airfoil')
+  
+  file_paths = getFilePath('data/airfoil/interpolated_uiuc')
   data = []
   for file_path in file_paths:
     data.append(get_data(file_path))
   data = np.array(data)
-  s = cal_diversity_score(data[:10])
-  print("Diversity score:", s)
+
+
+  # diversity 
+  # div = cal_diversity_score(data[:10])
+  # print("Diversity score:", div)
   
-  # label error 计算
+  # smoothness
+  total_sm = []
+  for i in range(3):
+    sm = calculate_smoothness(data[i])
+    total_sm.append(sm)
+   
+  print("smoothness: ", np.nanmean(total_sm,0))
+
+
+  # label error
   

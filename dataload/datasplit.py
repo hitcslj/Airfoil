@@ -5,13 +5,17 @@ import numpy as np
 import random
 from tqdm import tqdm
 
+
+seed = 42
+random.seed(seed)
+
 #3个数据子集的划分比例
 train_percent = 0.8
 val_percent = 0.1
 test_percent = 0.1
 
 rootpath = 'data/airfoil'
-dataset_names = ['cst_gen'] # 'interpolated_uiuc','r05','r06','supercritical_airfoil'
+dataset_names = ['supercritical_airfoil'] # 'cst_gen', 'interpolated_uiuc','r05','r06','supercritical_airfoil'
 for dataset_name in dataset_names:
   #创建文件
   if not os.path.exists(rootpath):
