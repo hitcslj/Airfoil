@@ -6,14 +6,14 @@ from torch.utils.data import DataLoader
 import torch.optim as optim 
 import torch.nn.functional as F
 import torch.optim.lr_scheduler as lr_scheduler
-from models import Generator,CDiscriminator
+from models.cgan import Generator,CDiscriminator
 from dataload import AirFoilMixParsec, Fit_airfoil
 import math 
 from utils import vis_airfoil2
 import random
 import argparse
 import numpy as np
-from utils import calculate_smoothness
+from utils import calculate_smoothness, cal_diversity_score
 
 
 os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
@@ -77,7 +77,7 @@ def load_checkpoint(args, D, G, d_optimizer,g_optimizer):
     print("=> loading checkpoint '{}'".format(args.checkpoint_path_g))
     checkpoint = torch.load(args.checkpoint_path_g, map_location='cpu')
     try:
-        args.start_epoch = int(checkpoint['epoch'])
+        args.start_epoch = int(checkpoint['epoch']) + 1
     except Exception:
         args.start_epoch = 1
     G.load_state_dict(checkpoint['model'], strict=True)
@@ -221,6 +221,32 @@ class Trainer:
         # 打印loss
         print(f'====> Epoch: {epoch} generator loss: {total_g_loss} discriminator: {total_d_loss}')
   
+    @torch.no_grad()
+    def infer_diversity(self,args, model, dataloader,device, epoch):
+        """测试模型的diversity score"""
+        model.eval()
+
+        total_div_score = []
+
+        test_loader = tqdm(dataloader)
+        for _,data in enumerate(test_loader):
+            for i in range(min(data['keypoint'].shape[0],100)):
+              keypoint = data['keypoint'][i,:,1:2] # [26,1]
+              physics = data['params'][i] # [11]
+              physics = physics.unsqueeze(-1) # [11,1]
+              condition = torch.cat([physics,keypoint],dim=0)
+              condition = condition.repeat(10,1,1)
+              # print(condition[0])
+              condition = condition.to(device)
+              recon_batch = model.sample(condition) #  [10,37,1] -> [1,257,1]
+              recon_batch = recon_batch.cpu().numpy()
+              total_div_score.append(cal_diversity_score(recon_batch))
+            break # 只跑一个batch_size
+        pkvae_diver = np.nanmean(total_div_score,0)
+        print(f"infer——epoch: {epoch}, pkvae_diver: {pkvae_diver}")
+        with open(f'{args.log_dir}/eval_result.txt','a') as f:
+            f.write(f"infer——epoch: {epoch}, pkvae_diver: {pkvae_diver}\n")
+
 
     @torch.no_grad()
     def infer(self,args, model, dataloader,device, epoch):
@@ -349,7 +375,13 @@ class Trainer:
                     device=device, 
                     epoch=epoch, 
                     )
-                 
+                self.infer_diversity(
+                    args=args,
+                    model=G,
+                    dataloader=val_loader,
+                    device=device, 
+                    epoch=epoch, 
+                    )
            
           
                 
@@ -373,5 +405,5 @@ if __name__ == '__main__':
 
 '''
 python train_cgan.py --log_dir logs/cgan_super
-python train_cgan.py --log_dir logs/cgan_afbench --max_epoch 201 --val_freq 100 --save_freq 100
+python train_cgan.py --log_dir logs/cgan_afbench --max_epoch 1001 --val_freq 500 --save_freq 500 --checkpoint_path_d logs/cgan_afbench/d_ckpt_epoch_100.pth  --checkpoint_path_g logs/cgan_afbench/g_ckpt_epoch_100.pth
 '''

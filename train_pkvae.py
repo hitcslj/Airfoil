@@ -270,16 +270,17 @@ class Trainer:
 
         test_loader = tqdm(dataloader)
         for _,data in enumerate(test_loader):
-            
-            keypoint = data['keypoint'][:,:,1:2] # [1,26,1]
-            physics = data['params'] # [1,11]
-            physics = physics.unsqueeze(-1) # [1,11,1]
-            condition = torch.cat([physics,keypoint],dim=1)
-            condition = condition.repeat(1000,1,1)
-            condition = condition.to(device)
-            recon_batch = model.sample(condition) # [b,20],[b,37,1] -> [b,257,1]
-            recon_batch = recon_batch.cpu().numpy()
-            total_div_score.append(cal_diversity_score(recon_batch))
+            for i in range(data['keypoint'].shape[0]):
+              keypoint = data['keypoint'][i,:,1:2] # [26,1]
+              physics = data['params'][i] # [11]
+              physics = physics.unsqueeze(-1) # [11,1]
+              condition = torch.cat([physics,keypoint],dim=0)
+              condition = condition.repeat(10,1,1)
+              condition = condition.to(device)
+              recon_batch = model.sample(condition) #  [10,37,1] -> [1,257,1]
+              recon_batch = recon_batch.cpu().numpy()
+              total_div_score.append(cal_diversity_score(recon_batch))
+            break # 只跑一个batch_size
         pkvae_diver = np.nanmean(total_div_score,0)
         print(f"infer——epoch: {epoch}, pkvae_diver: {pkvae_diver}")
         with open(f'{args.log_dir}/eval_result.txt','a') as f:
@@ -364,18 +365,18 @@ class Trainer:
         os.makedirs(args.log_dir, exist_ok=True)
         for epoch in range(args.start_epoch,args.max_epoch+1):
             # # train
-            self.train_one_epoch(args=args,
-                                 model=model,
-                                 optimizer=optimizer,
-                                 dataloader=train_loader,
-                                 device=device,
-                                 epoch=epoch
-                                 )
-            scheduler.step()
+            # self.train_one_epoch(args=args,
+            #                      model=model,
+            #                      optimizer=optimizer,
+            #                      dataloader=train_loader,
+            #                      device=device,
+            #                      epoch=epoch
+            #                      )
+            # scheduler.step()
             # save model and validate
             # args.val_freq = 1
             if epoch % args.val_freq == 0:
-                save_checkpoint(args, epoch, model, optimizer, scheduler)
+                # save_checkpoint(args, epoch, model, optimizer, scheduler)
                 # print("Validation begin.......")
                 # self.evaluate_one_epoch(
                 #     args=args,
@@ -384,20 +385,20 @@ class Trainer:
                 #     device=device, 
                 #     epoch=epoch, 
                 #     )
-                self.infer(
-                    args=args,
-                    model=model,
-                    dataloader=val_loader,
-                    device=device, 
-                    epoch=epoch
-                )
-                # self.infer_diversity(
+                # self.infer(
                 #     args=args,
                 #     model=model,
                 #     dataloader=val_loader,
                 #     device=device, 
-                #     epoch=epoch, 
-                #     )
+                #     epoch=epoch
+                # )
+                self.infer_diversity(
+                    args=args,
+                    model=model,
+                    dataloader=val_loader,
+                    device=device, 
+                    epoch=epoch, 
+                    )
  
                  
            
@@ -423,11 +424,11 @@ if __name__ == '__main__':
 
 
 '''
-python train_pkvae.py --log_dir logs/pk_vae_afbench --max_epoch 201 --val_freq 100 --save_freq 100
+python train_pkvae.py --log_dir logs/pk_vae_afbench --max_epoch 201 --val_freq 100 --save_freq 100 --batch_size 100 --checkpoint_path='logs/pk_vae_afbench/ckpt_epoch_200.pth'
 
 python train_pkvae.py --log_dir logs/pk_vae_afbench --max_epoch 201 --val_freq 100 --save_freq 100
 
-python  train_pkvae.py --downsample_rate 20 --condition_size 24 --log_dir logs/pk_vae_afbench2 --max_epoch 201 --val_freq 100 --save_freq 100 --batch_size 10240
+python  train_pkvae.py --downsample_rate 20 --condition_size 24 --log_dir logs/pk_vae_afbench2 --max_epoch 201 --val_freq 100 --save_freq 100 --batch_size 100
 
 python  -u train_pkvae.py --downsample_rate 30 --condition_size 20 --log_dir logs/pk_vae_afbench3 --max_epoch 201 --val_freq 100 --save_freq 100 --batch_size 10240
 

@@ -118,16 +118,24 @@ if __name__ == '__main__':
 
 
   # diversity 
-  # div = cal_diversity_score(data[:10])
-  # print("Diversity score:", div)
+  airfoil = []
+  for i in range(10):
+      if i < 2:
+        airfoil.append(data[0])
+      else:
+        airfoil.append(data[0]+0.00001*np.random.randn(data[0].shape[0],data[0].shape[1]))
+  airfoil = np.array(airfoil)
+   
+  div = cal_diversity_score(airfoil)
+  print("Diversity score:", div)
   
   # smoothness
-  total_sm = []
-  for i in range(3):
-    sm = calculate_smoothness(data[i])
-    total_sm.append(sm)
+  # total_sm = []
+  # for i in range(3):
+  #   sm = calculate_smoothness(data[i])
+  #   total_sm.append(sm)
    
-  print("smoothness: ", np.nanmean(total_sm,0))
+  # print("smoothness: ", np.nanmean(total_sm,0))
 
 
   # label error

@@ -90,6 +90,7 @@ class CVAE_GAN(nn.Module):
         '''
         batch = c.shape[0]
         z = torch.randn((batch,self.latent_size)).to(c.device)
+        import pdb; pdb.set_trace()
         recons_batch = self.decode(z, c).reshape(-1,self.feature_size,1)
         return recons_batch
     

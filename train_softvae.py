@@ -234,6 +234,31 @@ class Trainer:
         with open(f'{args.log_dir}/infer_result.txt','a') as f:
             f.write(f"infer——epoch: {epoch}, avg_parsec_loss: {' & '.join(avg_parsec_loss_sci)}\n")
             f.write(f"infer——epoch: {epoch}, smoothness: {smoothness}")
+    
+    @torch.no_grad()
+    def infer_diversity(self,args, model, dataloader,device, epoch):
+        """测试模型的diversity score"""
+        model.eval()
+
+        total_div_score = []
+
+        test_loader = tqdm(dataloader)
+        for _,data in enumerate(test_loader):
+            for i in range(data['keypoint'].shape[0]):
+              keypoint = data['keypoint'][i,:,1:2] # [26,1]
+              physics = data['params'][i] # [11]
+              physics = physics.unsqueeze(-1) # [11,1]
+              condition = torch.cat([physics,keypoint],dim=0)
+              condition = condition.repeat(10,1,1)
+              condition = condition.to(device)
+              recon_batch = model.sample(condition) #  [10,37,1] -> [1,257,1]
+              recon_batch = recon_batch.cpu().numpy()
+              total_div_score.append(cal_diversity_score(recon_batch))
+            break # 只跑一个batch_size
+        pkvae_diver = np.nanmean(total_div_score,0)
+        print(f"infer——epoch: {epoch}, pkvae_diver: {pkvae_diver}")
+        with open(f'{args.log_dir}/eval_result.txt','a') as f:
+            f.write(f"infer——epoch: {epoch}, pkvae_diver: {pkvae_diver}\n")
 
     def main(self,args):
         """Run main training/evaluation pipeline."""
@@ -259,27 +284,33 @@ class Trainer:
         os.makedirs(args.log_dir, exist_ok=True)
         for epoch in range(args.start_epoch,args.max_epoch+1):
             # # train
-            self.train_one_epoch(args=args,
-                                 model=model,
-                                 optimizer=optimizer,
-                                 dataloader=train_loader,
-                                 device=device,
-                                 epoch=epoch
-                                 )
-            scheduler.step()
+            # self.train_one_epoch(args=args,
+            #                      model=model,
+            #                      optimizer=optimizer,
+            #                      dataloader=train_loader,
+            #                      device=device,
+            #                      epoch=epoch
+            #                      )
+            # scheduler.step()
 
             # save model and validate
             if epoch % args.val_freq == 0:
-                save_checkpoint(args, epoch, model, optimizer, scheduler)
-                # print("test begin.......")
-                self.infer(
+                # save_checkpoint(args, epoch, model, optimizer, scheduler)
+                # # print("test begin.......")
+                # self.infer(
+                #     args=args,
+                #     model=model,
+                #     dataloader=test_loader,
+                #     device=device, 
+                #     epoch=epoch, 
+                #     )
+                self.infer_diversity(
                     args=args,
                     model=model,
                     dataloader=test_loader,
                     device=device, 
                     epoch=epoch, 
                     )
-                 
                     
 
 if __name__ == '__main__':
@@ -303,6 +334,6 @@ if __name__ == '__main__':
 
 
 '''
-python train_softvae.py --log_dir logs/soft_vae_afbench  --max_epoch 201 --val_freq 100 --save_freq 100
+python train_softvae.py --log_dir logs/soft_vae_afbench  --max_epoch 201 --val_freq 100 --save_freq 100 --checkpoint_path logs/soft_vae_afbench/ckpt_epoch_200.pth --batch_size 100
 '''
        

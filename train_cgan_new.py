@@ -6,7 +6,7 @@ from torch.utils.data import DataLoader
 import torch.optim as optim 
 import torch.nn.functional as F
 import torch.optim.lr_scheduler as lr_scheduler
-from models.cgan import CGenerator,CDiscriminator
+from models.cgan_new import CGenerator,CDiscriminator
 from dataload import AirFoilMixParsec, Fit_airfoil
 import math 
 from utils import vis_airfoil2
@@ -409,5 +409,5 @@ if __name__ == '__main__':
 
 
 ''''
-python train_cgan.py --log_dir logs/cgan_new --val_freq 100 --save_freq 100 --cond_dim 11 --device cuda:2 --max_epoch 1000 --batch_size 256 --checkpoint_path_d logs/cgan_new/d_ckpt_epoch_1000.pth --checkpoint_path_g logs/cgan_new/g_ckpt_epoch_1000.pth
+python train_cgan.py --log_dir logs/cgan_new --val_freq 500 --save_freq 500 --cond_dim 11 --device cuda:0 --max_epoch 1000 --batch_size 256 --checkpoint_path_d logs/cgan_new/d_ckpt_epoch_1000.pth --checkpoint_path_g logs/cgan_new/g_ckpt_epoch_1000.pth
 '''

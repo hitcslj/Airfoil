@@ -14,12 +14,12 @@ pip install -r requirements.txt
 
 ## Dataset
 
-请将数据集软链接到 `data` 文件夹下, 默认数据集为 `data/airfoil/cst_gen/*.dat`
+请将[数据集](https://drive.google.com/file/d/1wKvegGwjhxR3FeME7nEeQqxKF2F15GmI/view?usp=sharing)软链接到 `data` 文件夹下, 默认数据集为 `data/airfoil/cst_gen/*.dat`
 
 在项目的根文件夹下:
 ```bash
 # use CST method to generate airfoil
-python dataload/data_gen.py 
+python dataload/cst_gen.py 
 
 # interpolate airfoil to specified number of points
 python dataload/interpolate.py 

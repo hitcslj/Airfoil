@@ -6,14 +6,14 @@ from torch.utils.data import DataLoader
 import torch.optim as optim 
 import torch.nn.functional as F
 import torch.optim.lr_scheduler as lr_scheduler
-from models import CVAE_GAN, Discriminator
+from models.cvae_gan import CVAE_GAN, Discriminator
 from dataload import AirFoilMixParsec, Fit_airfoil
 import math 
 from utils import vis_airfoil2
 import random
 import argparse
 import numpy as np
-from utils import calculate_smoothness
+from utils import calculate_smoothness,cal_diversity_score
 
 
 os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
@@ -239,6 +239,32 @@ class Trainer:
         # 打印loss
         print(f'====> Epoch: {epoch} recons loss: {total_recons_loss} kl_loss: {total_kl_loss}')
   
+    @torch.no_grad()
+    def infer_diversity(self,args, model, dataloader,device, epoch):
+        """测试模型的diversity score"""
+        model.eval()
+
+        total_div_score = []
+
+        test_loader = tqdm(dataloader)
+        for _,data in enumerate(test_loader):
+            for i in range(data['keypoint'].shape[0]):
+              keypoint = data['keypoint'][i,:,1:2] # [26,1]
+              physics = data['params'][i] # [11]
+              physics = physics.unsqueeze(-1) # [11,1]
+              condition = torch.cat([physics,keypoint],dim=0)
+              condition = condition.repeat(10,1,1)
+              # print(condition[0])
+              condition = condition.to(device)
+              recon_batch = model.sample(condition) #  [10,37,1] -> [1,257,1]
+              import pdb; pdb.set_trace()
+              recon_batch = recon_batch.cpu().numpy()
+              total_div_score.append(cal_diversity_score(recon_batch))
+            break # 只跑一个batch_size
+        pkvae_diver = np.nanmean(total_div_score,0)
+        print(f"infer——epoch: {epoch}, pkvae_diver: {pkvae_diver}")
+        with open(f'{args.log_dir}/eval_result.txt','a') as f:
+            f.write(f"infer——epoch: {epoch}, pkvae_diver: {pkvae_diver}\n")
 
     @torch.no_grad()
     def infer(self,args, model, dataloader,device, epoch):
@@ -320,22 +346,29 @@ class Trainer:
         os.makedirs(args.log_dir, exist_ok=True)
         for epoch in range(args.start_epoch,args.max_epoch+1):
             # # train
-            self.train_one_epoch(args=args,
-                                 D=D,
-                                 G=G,
-                                 d_optimizer=d_optimizer,
-                                 g_optimizer=g_optimizer,
-                                 dataloader=train_loader,
-                                 device=device,
-                                 epoch=epoch
-                                 )
-            d_scheduler.step()
-            g_scheduler.step()
+            # self.train_one_epoch(args=args,
+            #                      D=D,
+            #                      G=G,
+            #                      d_optimizer=d_optimizer,
+            #                      g_optimizer=g_optimizer,
+            #                      dataloader=train_loader,
+            #                      device=device,
+            #                      epoch=epoch
+            #                      )
+            # d_scheduler.step()
+            # g_scheduler.step()
             # save model and validate
             if epoch % args.val_freq == 0:
-                save_checkpoint(args, epoch, D,G,d_optimizer,g_optimizer)
-                print("Validation begin.......")
-                self.infer(
+                # save_checkpoint(args, epoch, D,G,d_optimizer,g_optimizer)
+                # print("Validation begin.......")
+                # self.infer(
+                #     args=args,
+                #     model=G,
+                #     dataloader=val_loader,
+                #     device=device, 
+                #     epoch=epoch, 
+                #     )
+                self.infer_diversity(
                     args=args,
                     model=G,
                     dataloader=val_loader,
@@ -366,6 +399,8 @@ if __name__ == '__main__':
 
 '''
 python train_cvae_gan.py --log_dir logs/cvae_gan_super
-python train_cvae_gan.py --log_dir logs/cvae_gan_afbench --max_epoch 201 --val_freq 100 --save_freq 100
-python train_cvae_gan.py --checkpoint_path_d logs/cvae_gan/d_ckpt_epoch_1000.pth --checkpoint_path_g logs/cvae_gan/g_ckpt_epoch_1000.pth  
+
+python train_cvae_gan.py --log_dir logs/cvae_gan_afbench --max_epoch 201 --val_freq 100 --save_freq 100 --checkpoint_path_d logs/cvae_gan_afbench/d_ckpt_epoch_200.pth --checkpoint_path_g logs/cvae_gan_afbench/g_ckpt_epoch_200.pth --batch_size 1
+
+python train_cvae_gan.py --checkpoint_path_d logs/cvae_gan/d_ckpt_epoch_1000.pth --checkpoint_path_g logs/cvae_gan/g_ckpt_epoch_1000.pth 
 '''
